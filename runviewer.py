@@ -51,3 +51,28 @@ canvas.mpl_connect('scroll_event',callbacks.onscroll)
 
 win.show_all()
 gtk.main()
+
+
+
+
+def plot_outputs():
+    for device in inventory:
+        if device.parent_device is None:
+            for i, output in enumerate(device.get_all_outputs()):
+                if isinstance(output,Output):
+                    if output.clock_type == 'slow clock':
+                        times = device.change_times
+                    else:
+                        times = device.times
+                    t,y = discretise(times,output.raw_output/float32(output.scale_factor), device.stop_time)
+                    plot(t,y,'-',label=output.name)
+
+    grid(True)
+    xlabel('time (seconds)')
+    ylabel('output values')
+    title('Pseudoclocked outputs')
+    legend(loc='upper left')
+    if '-show' in sys.argv:
+        show()
+    else:
+        savefig('outputs.png')
