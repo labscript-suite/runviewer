@@ -17,6 +17,30 @@ def decompose_bitfield(intarray,nbits):
         bitarray[:,i] = (intarray & (1 << i)) >> i
     return bitarray
 
+def resample(data_x,data_y,target_x):
+    """This is a function for downsampling the data before plotting
+    it. Unlike using nearest neighbour interpolation, this method
+    preserves the features of the plot. It chooses what value to use based
+    on what values within a region are most different from the values
+    it's already chosen. This way, spikes of a short durat‭ion won't
+    just be skipped over as they would with any sort of interpolation."""
+    y = zeros(len(target_x))
+    j = 0
+    for i, x in enumerate(target_x):
+        k = 0
+        try:
+            while data_x[j] < x:
+                j+=1
+                k+=1
+            maxindex = (abs(data_y[j-k:j] - y[i-1])).argmax()
+            y[i] = data_y[maxindex + j - k]
+        except:
+            if data_x[j] == x:
+                y[i] = data_y[j]
+            else:
+                y[i] = float('NaN')
+    return y
+    
 def discretise(t,y,stop_time):
     tnew = zeros((len(t),2))
     ynew = zeros((len(y),2))
@@ -100,7 +124,7 @@ def plot_ni_pcie_6363(devicename):
             to_plot.append({'name':name, 'times':t, 'data':y,'device':devicename,'connection':connection})
 
 
-sys.argv.append('example.h5')
+#sys.argv.append('example.h5')
 
 
 plotting_functions = {'ni_pcie_6363':plot_ni_pcie_6363}
@@ -127,7 +151,7 @@ for i, line in enumerate(to_plot):
     x = line['times']
     y = line['data']
     f = interp1d(x,y,kind='nearest')
-    xnew = linspace(min(x),max(x),10000)
+    xnew = linspace(min(x),max(x),1000000)
     ynew = f(xnew)
     gca().set_ylim(min(y) - 0.1 *(max(y) - min(y)), max(y) + 0.1 *(max(y) - min(y)))
     plot(xnew, ynew)
