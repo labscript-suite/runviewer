@@ -7,6 +7,8 @@ from matplotlib.backends.backend_gtkagg import FigureCanvasGTKAgg as FigureCanva
 
 import gtk
 
+from scipy.interpolate import interp1d
+
 def decompose_bitfield(intarray,nbits):
     """converts a single array of unsigned ints into a 2D array
     (len(intarray) x nbits) of ones and zeros"""
@@ -72,6 +74,7 @@ def get_clock(device_name):
     clock_type = connection_lookup[ancestry[-3]]
     clock_type = {'fast clock':'FAST_CLOCK','slow_clock':'SLOW_CLOCK'}[clock_type]
     clock_array = hdf5_file['devices'][clocking_device][clock_type]
+    print len(clock_array)
     return clock_array
     
 def plot_ni_pcie_6363(devicename):
@@ -97,7 +100,7 @@ def plot_ni_pcie_6363(devicename):
             to_plot.append({'name':name, 'times':t, 'data':y,'device':devicename,'connection':connection})
 
 
-#sys.argv.append('example.h5')
+sys.argv.append('example.h5')
 
 
 plotting_functions = {'ni_pcie_6363':plot_ni_pcie_6363}
@@ -118,9 +121,17 @@ for device_name in hdf5_file['/devices']:
 params = SubplotParams(hspace=0)
 figure(subplotpars = params)
 axes = []
+
 for i, line in enumerate(to_plot):
     subplot(len(to_plot),1,i+1)
-    plot(line['times'],line['data'])
+    x = line['times']
+    y = line['data']
+    f = interp1d(x,y,kind='nearest')
+    xnew = linspace(min(x),max(x),10000)
+    ynew = f(xnew)
+    gca().set_ylim(min(y) - 0.1 *(max(y) - min(y)), max(y) + 0.1 *(max(y) - min(y)))
+    plot(xnew, ynew)
+    
     gca().yaxis.set_major_locator(MaxNLocator(steps=[1,2,3,4,5,6,7,8,9,10], prune = 'both'))
     axes.append(gca())
     if i < len(to_plot)-1:
@@ -128,9 +139,8 @@ for i, line in enumerate(to_plot):
     else:
         xlabel('Time (seconds)')
     ylabel(line['name'])
-    NullFormatter
     
-    grid(True)
+    #grid(True)
     
 win = gtk.Window()
 win.connect("destroy", gtk.main_quit)
@@ -141,13 +151,12 @@ canvas = FigureCanvas(gcf())  # a gtk.DrawingArea
 win.add(canvas)
 
 
-dy = 0.1
-dx = 0.1
-
+dy = 0.5
+dx = 0.5
 
 class Callbacks:
     def onscroll(self, event):
-        print event.button, event.key, event.button, event.step, event.inaxes
+        #print event.button, event.key, event.button, event.step, event.inaxes
         if event.key == 'control' and event.inaxes:
             xmin, xmax, ymin, ymax = event.inaxes.axis()
             event.inaxes.set_ylim(ymin + event.step*dy, ymax + event.step*dy)
