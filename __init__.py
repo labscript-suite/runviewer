@@ -3,6 +3,9 @@ import h5py
 from pylab import *
 from matplotlib.ticker import MaxNLocator, NullFormatter
 from matplotlib.figure import SubplotParams
+from matplotlib.backends.backend_gtkagg import FigureCanvasGTKAgg as FigureCanvas
+
+import gtk
 
 def decompose_bitfield(intarray,nbits):
     """converts a single array of unsigned ints into a 2D array
@@ -93,6 +96,10 @@ def plot_ni_pcie_6363(devicename):
             name = name_lookup[connection]
             to_plot.append({'name':name, 'times':t, 'data':y,'device':devicename,'connection':connection})
 
+
+#sys.argv.append('example.h5')
+
+
 plotting_functions = {'ni_pcie_6363':plot_ni_pcie_6363}
 #                      'ni_pci_6733':plot_ni_pci_6733,
 #                      'novatechdds9m':plot_novatechdds9m,
@@ -110,10 +117,12 @@ for device_name in hdf5_file['/devices']:
 
 params = SubplotParams(hspace=0)
 figure(subplotpars = params)
+axes = []
 for i, line in enumerate(to_plot):
     subplot(len(to_plot),1,i+1)
     plot(line['times'],line['data'])
     gca().yaxis.set_major_locator(MaxNLocator(steps=[1,2,3,4,5,6,7,8,9,10], prune = 'both'))
+    axes.append(gca())
     if i < len(to_plot)-1:
         gca().xaxis.set_major_formatter(NullFormatter())
     else:
@@ -122,6 +131,37 @@ for i, line in enumerate(to_plot):
     NullFormatter
     
     grid(True)
-show()
+    
+win = gtk.Window()
+win.connect("destroy", gtk.main_quit)
+win.set_default_size(400,300)
+win.set_title("Labscript experiment preview")
+
+canvas = FigureCanvas(gcf())  # a gtk.DrawingArea
+win.add(canvas)
+
+
+dy = 0.1
+dx = 0.1
+
+
+class Callbacks:
+    def onscroll(self, event):
+        print event.button, event.key, event.button, event.step, event.inaxes
+        if event.key == 'control' and event.inaxes:
+            xmin, xmax, ymin, ymax = event.inaxes.axis()
+            event.inaxes.set_ylim(ymin + event.step*dy, ymax + event.step*dy)
+        else:
+            for axis in axes:
+                xmin, xmax, ymin, ymax = axis.axis()
+                axis.set_xlim(xmin + event.step*dy, xmax + event.step*dx)
+        canvas.draw_idle()
+
+
+callbacks = Callbacks()
+canvas.mpl_connect('scroll_event',callbacks.onscroll)
+win.show_all()
+gtk.main()
+
 
 
