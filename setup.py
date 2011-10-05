@@ -10,4 +10,7 @@ setup(
 import shutil, os
 if os.name == 'posix':
     shutil.copy('build/lib.linux-x86_64-2.6/resample.so','resample.so')
-    shutil.rmtree('build')
+elif os.name == 'nt':
+    shutil.copy('build/lib.win32-2.7/resample.pyd','resample.pyd')
+
+shutil.rmtree('build')
