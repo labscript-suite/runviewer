@@ -7,6 +7,8 @@ from matplotlib.backends.backend_gtkagg import FigureCanvasGTKAgg as FigureCanva
 
 import gtk
 
+from resample import resample as _resample
+
 def decompose_bitfield(intarray,nbits):
     """converts a single array of unsigned ints into a 2D array
     (len(intarray) x nbits) of ones and zeros"""
@@ -15,6 +17,14 @@ def decompose_bitfield(intarray,nbits):
         bitarray[:,i] = (intarray & (1 << i)) >> i
     return bitarray
 
+def resample2(data_x, data_y):
+    print 'resampling!'
+    x_out = float32(linspace(x[0]-1, x[-1]+1, 10000))
+    y_out = zeros(len(x_out), dtype=float32)
+    _resample(data_x, data_y, x_out, y_out)
+    #y_out = resample(data_x, data_y, x_out)
+    return x_out, y_out
+    
 def resample(data_x,data_y,target_x):
     """This is a function for downsampling the data before plotting
     it. Unlike using nearest neighbour interpolation, this method
@@ -24,19 +34,23 @@ def resample(data_x,data_y,target_x):
     just be skipped over as they would with any sort of interpolation."""
     y = zeros(len(target_x))
     j = 0
-    for i, x in enumerate(target_x):
+    for i in range(len(target_x)):
         k = 0
-        try:
-            while data_x[j] < x:
-                j+=1
-                k+=1
-            maxindex = (abs(data_y[j-k:j] - y[i-1])).argmax()
-            y[i] = data_y[maxindex + j - k]
-        except:
-            if data_x[j] == x or k==0:
-                y[i] = data_y[j]
+        while j < len(data_x) and data_x[j] < target_x[i]:
+            j+=1
+            k+=1
+        if j == len(data_x) or k==0:
+            y[i] = float('NaN')
+        elif data_x[j] == target_x[i]:
+            y[i] = data_y[j]
+        else:
+            if i == 0:
+                yinit = y[0]
             else:
-                y[i] = float('NaN')
+                yinit = y[i-1]
+            maxindex = (abs(data_y[j-k:j] - yinit)).argmax()
+            y[i] = data_y[maxindex + j - k]
+            
     return y
     
 def discretise(t,y,stop_time):
@@ -146,11 +160,13 @@ axes = []
 
 for i, line in enumerate(to_plot):
     subplot(len(to_plot),1,i+1)
-    x = line['times']
-    y = line['data']
-    xnew = linspace(x[0], x[-1], 1000)
-    ynew = resample(x,y,xnew)
-    gca().set_ylim(min(ynew) - 0.1 *(max(ynew) - min(ynew)), max(ynew) + 0.1 *(max(ynew) - min(ynew)))
+    x = array(line['times'])
+    y = array(line['data'])
+    if y.dtype == int32:
+        y = float32(y)
+    xnew, ynew = resample2(x,y)
+    mn,mx = min(y), max(y)
+    gca().set_ylim(mn - 0.1 *(mx - mn), mx + 0.1 *(mx - mn))
     plot(xnew, ynew)
     
     gca().yaxis.set_major_locator(MaxNLocator(steps=[1,2,3,4,5,6,7,8,9,10], prune = 'both'))
@@ -162,7 +178,9 @@ for i, line in enumerate(to_plot):
     ylabel(line['name'])
     
     grid(True)
-    
+
+#show() 
+   
 win = gtk.Window()
 win.connect("destroy", gtk.main_quit)
 win.set_default_size(400,300)
