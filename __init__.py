@@ -7,8 +7,6 @@ from matplotlib.backends.backend_gtkagg import FigureCanvasGTKAgg as FigureCanva
 
 import gtk
 
-from scipy.interpolate import interp1d
-
 def decompose_bitfield(intarray,nbits):
     """converts a single array of unsigned ints into a 2D array
     (len(intarray) x nbits) of ones and zeros"""
@@ -22,7 +20,7 @@ def resample(data_x,data_y,target_x):
     it. Unlike using nearest neighbour interpolation, this method
     preserves the features of the plot. It chooses what value to use based
     on what values within a region are most different from the values
-    it's already chosen. This way, spikes of a short durat‭ion won't
+    it's already chosen. This way, spikes of a short duration won't
     just be skipped over as they would with any sort of interpolation."""
     y = zeros(len(target_x))
     j = 0
@@ -35,7 +33,7 @@ def resample(data_x,data_y,target_x):
             maxindex = (abs(data_y[j-k:j] - y[i-1])).argmax()
             y[i] = data_y[maxindex + j - k]
         except:
-            if data_x[j] == x:
+            if data_x[j] == x or k==0:
                 y[i] = data_y[j]
             else:
                 y[i] = float('NaN')
@@ -112,19 +110,19 @@ def plot_ni_pcie_6363(devicename):
     for i, chan in enumerate(analog_channels):
         data = analog_outs[:,i]
         name = name_lookup[devicename, chan]
-        t,y = discretise(clock,data,clock[-1])
-        to_plot.append({'name':name, 'times':t, 'data':y,'device':devicename,'connection':chan})
+        #t,y = discretise(clock,data,clock[-1])
+        to_plot.append({'name':name, 'times':array(clock), 'data':array(data),'device':devicename,'connection':chan})
     digital_bits = decompose_bitfield(digital_outs[:],32)
     for i in range(32):
         connection = (devicename,'port0/line%d'%i)
         if connection in name_lookup:
             data = digital_bits[:,i]
-            t,y = discretise(clock,data,clock[-1])
+            #t,y = discretise(clock,data,clock[-1])
             name = name_lookup[connection]
-            to_plot.append({'name':name, 'times':t, 'data':y,'device':devicename,'connection':connection})
+            to_plot.append({'name':name, 'times':array(clock), 'data':array(data),'device':devicename,'connection':connection})
 
-
-#sys.argv.append('example.h5')
+if len(sys.argv) == 1:
+    sys.argv.append('example.h5')
 
 
 plotting_functions = {'ni_pcie_6363':plot_ni_pcie_6363}
@@ -150,10 +148,9 @@ for i, line in enumerate(to_plot):
     subplot(len(to_plot),1,i+1)
     x = line['times']
     y = line['data']
-    f = interp1d(x,y,kind='nearest')
-    xnew = linspace(min(x),max(x),1000000)
-    ynew = f(xnew)
-    gca().set_ylim(min(y) - 0.1 *(max(y) - min(y)), max(y) + 0.1 *(max(y) - min(y)))
+    xnew = linspace(x[0], x[-1], 1000)
+    ynew = resample(x,y,xnew)
+    gca().set_ylim(min(ynew) - 0.1 *(max(ynew) - min(ynew)), max(ynew) + 0.1 *(max(ynew) - min(ynew)))
     plot(xnew, ynew)
     
     gca().yaxis.set_major_locator(MaxNLocator(steps=[1,2,3,4,5,6,7,8,9,10], prune = 'both'))
@@ -164,7 +161,7 @@ for i, line in enumerate(to_plot):
         xlabel('Time (seconds)')
     ylabel(line['name'])
     
-    #grid(True)
+    grid(True)
     
 win = gtk.Window()
 win.connect("destroy", gtk.main_quit)
