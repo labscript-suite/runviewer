@@ -58,7 +58,7 @@ resample(PyObject *dummy, PyObject *args)
     i++;
     j++;
     // Get values until we get to the end of the data:
-    while(j < n_in){
+    while((j < n_in) && (i < n_out)){
         // This is 'nearest neighbour on the left' interpolation. It's
         // what we want if none of the source values checked in the
         // upcoming loop are used:
@@ -74,9 +74,11 @@ resample(PyObject *dummy, PyObject *args)
         }
         i++;
     }
-    // Get the last datapoint:
-    y_out_data[i] = y_in_data[n_in - 1];
-    i++;
+    // Get the last datapoint, if we got that far:
+    if(i < n_out){
+        y_out_data[i] = y_in_data[n_in - 1];
+        i++;
+    }
     // Fill the remainder of the array with NaNs:
     while(i < n_out){
         y_out_data[i] = 0.0/0.0;

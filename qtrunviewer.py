@@ -26,10 +26,10 @@ def resample(data_x, data_y):
     just be skipped over as they would with any sort of interpolation."""
     
     print 'resampling!'
-    x_out = float32(linspace(x[0]-1, x[-1]+1, 1000))
+    x_out = float32(linspace(x[0], x[-1], 1000))
     y_out = empty(len(x_out), dtype=float32)
     _resample(data_x, data_y, x_out, y_out)
-    #y_out = resample3(data_x, data_y, x_out)
+    #y_out = __resample3(data_x, data_y, x_out)
     return x_out, y_out
     
 def __resample3(x_in,y_in,x_out):
@@ -45,7 +45,7 @@ def __resample3(x_in,y_in,x_out):
     i += 1
     j = 1
     # Get values until we get to the end of the data:
-    while j < len(x_in):
+    while j < len(x_in) and i < len(x_out):
         # This is 'nearest neighbour on the left' interpolation. It's
         # what we want if none of the source values checked in the
         # upcoming loop are used:
@@ -59,8 +59,9 @@ def __resample3(x_in,y_in,x_out):
             j+=1
         i += 1
     # Get the last datapoint:
-    y_out[i] = y_in[-1]
-    i += 1
+    if i < len(x_out):
+        y_out[i] = y_in[-1]
+        i += 1
     # Fill the remainder of the array with NaNs:
     while i < len(x_out):
         y_out[i] = float('NaN')
@@ -168,15 +169,30 @@ for device_name in hdf5_file['/devices']:
         continue
     plotting_functions[device_prefix](device_name)
 
-app = QtGui.QApplication([])
-mw = QtGui.QMainWindow()
-cw = QtGui.QWidget()
-mw.setCentralWidget(cw)
-l = QtGui.QVBoxLayout()
-cw.setLayout(l)
-
-mw.show()
 to_plot *= 7
+
+app = QtGui.QApplication([])
+MainWindow = QtGui.QMainWindow()
+centralwidget = QtGui.QWidget(MainWindow)
+verticalLayout = QtGui.QVBoxLayout(centralwidget)
+
+scrollArea = QtGui.QScrollArea()
+scrollArea.setWidgetResizable(False)
+scrollArea.setMinimumHeight(800)
+scrollArea.setMinimumWidth(1920/2)
+scrollArea.setMaximumHeight(1200)
+scrollArea.setMaximumWidth(1200)
+
+verticalLayout.addWidget(scrollArea)
+
+scrollAreaWidgetContents = QtGui.QWidget(scrollArea)
+scrollAreaWidgetContents.setGeometry(QtCore.QRect(0, 0, 1920/2-20, len(to_plot)*200))
+
+scrollArea.setWidget(scrollAreaWidgetContents)
+verticalLayout_2 = QtGui.QVBoxLayout(scrollAreaWidgetContents)
+
+MainWindow.setCentralWidget(centralwidget)
+MainWindow.show()
 
 for i, line in enumerate(to_plot):
     if i == 0:
@@ -184,7 +200,7 @@ for i, line in enumerate(to_plot):
     else:
         pw = pg.PlotWidget(name='Plot02%d'%i)
         pw.plotItem.setXLink('Plot0')
-    l.addWidget(pw)
+    verticalLayout_2.addWidget(pw)
     
     x = array(line['times'])
     y = array(line['data'])
