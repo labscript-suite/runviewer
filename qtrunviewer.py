@@ -193,7 +193,8 @@ for i, line in enumerate(to_plot):
     xnew, ynew = resample(x,y)
     plot = pw.plot(y=ynew,x=xnew)
 
-
+if sys.flags.interactive != 1:
+    app.exec_()
 
 
 
