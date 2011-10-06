@@ -1,10 +1,12 @@
 import os,sys
 import h5py
+import matplotlib
+matplotlib.use('GTKAgg')
 from pylab import *
 from matplotlib.ticker import MaxNLocator, NullFormatter
 from matplotlib.figure import SubplotParams
 from matplotlib.backends.backend_gtkagg import FigureCanvasGTKAgg as FigureCanvas
-
+from matplotlib.backends.backend_gtkagg import NavigationToolbar2GTKAgg as NavigationToolbar
 import gtk
 
 from resample import resample as _resample
@@ -12,47 +14,61 @@ from resample import resample as _resample
 def decompose_bitfield(intarray,nbits):
     """converts a single array of unsigned ints into a 2D array
     (len(intarray) x nbits) of ones and zeros"""
-    bitarray = zeros((len(intarray),nbits),dtype=int32)
+    bitarray = zeros((len(intarray),nbits),dtype=int8)
     for i in range(nbits):
         bitarray[:,i] = (intarray & (1 << i)) >> i
     return bitarray
 
-def resample2(data_x, data_y):
-    print 'resampling!'
-    x_out = float32(linspace(x[0]-1, x[-1]+1, 10000))
-    y_out = zeros(len(x_out), dtype=float32)
-    _resample(data_x, data_y, x_out, y_out)
-    #y_out = resample(data_x, data_y, x_out)
-    return x_out, y_out
-    
-def resample(data_x,data_y,target_x):
+def resample(data_x, data_y):
     """This is a function for downsampling the data before plotting
     it. Unlike using nearest neighbour interpolation, this method
     preserves the features of the plot. It chooses what value to use based
     on what values within a region are most different from the values
     it's already chosen. This way, spikes of a short duration won't
     just be skipped over as they would with any sort of interpolation."""
-    y = zeros(len(target_x))
-    j = 0
-    for i in range(len(target_x)):
-        k = 0
-        while j < len(data_x) and data_x[j] < target_x[i]:
-            j+=1
-            k+=1
-        if j == len(data_x) or k==0:
-            y[i] = float('NaN')
-        elif data_x[j] == target_x[i]:
-            y[i] = data_y[j]
-        else:
-            if i == 0:
-                yinit = y[0]
-            else:
-                yinit = y[i-1]
-            maxindex = (abs(data_y[j-k:j] - yinit)).argmax()
-            y[i] = data_y[maxindex + j - k]
-            
-    return y
     
+    print 'resampling!'
+    x_out = float32(linspace(x[0]-1, x[-1]+1, 10000))
+    y_out = empty(len(x_out), dtype=float32)
+    _resample(data_x, data_y, x_out, y_out)
+    #y_out = resample3(data_x, data_y, x_out)
+    return x_out, y_out
+    
+def __resample3(x_in,y_in,x_out):
+    y_out = empty(len(x_out))
+    i = 0
+    # Until we get to the data, fill the output array with NaNs (which
+    # get ignored when plotted)
+    while x_out[i] < x_in[0]:
+        y_out[i] = float('NaN')
+        i += 1
+    # Get the first datapoint:
+    y_out[i] = y_in[0]
+    i += 1
+    j = 1
+    # Get values until we get to the end of the data:
+    while j < len(x_in):
+        # This is 'nearest neighbour on the left' interpolation. It's
+        # what we want if none of the source values checked in the
+        # upcoming loop are used:
+        y_out[i] = y_in[j-1]
+        while j < len(x_in) and x_in[j] < x_out[i]:
+            # Would using this source value cause the interpolated values
+            # to make a bigger jump?
+            if abs(y_in[j] - y_out[i-1]) > abs(y_out[i] - y_out[i-1]):
+                # If so, use this source value:
+                y_out[i] = y_in[j]
+            j+=1
+        i += 1
+    # Get the last datapoint:
+    y_out[i] = y_in[-1]
+    i += 1
+    # Fill the remainder of the array with NaNs:
+    while i < len(x_out):
+        y_out[i] = float('NaN')
+        i += 1
+    return y_out
+        
 def discretise(t,y,stop_time):
     tnew = zeros((len(t),2))
     ynew = zeros((len(y),2))
@@ -157,41 +173,51 @@ for device_name in hdf5_file['/devices']:
 params = SubplotParams(hspace=0)
 figure(subplotpars = params)
 axes = []
-
+to_plot *= 5
 for i, line in enumerate(to_plot):
-    subplot(len(to_plot),1,i+1)
+    if i == 0:
+        ax1 = ax = subplot(len(to_plot),1,i+1)
+    else:
+        ax = subplot(len(to_plot),1,i+1,sharex=ax1)
     x = array(line['times'])
     y = array(line['data'])
     if y.dtype == int32:
         y = float32(y)
-    xnew, ynew = resample2(x,y)
+    xnew, ynew = resample(x,y)
     mn,mx = min(y), max(y)
     gca().set_ylim(mn - 0.1 *(mx - mn), mx + 0.1 *(mx - mn))
+    gca().set_xlim(min(xnew), max(xnew))
     plot(xnew, ynew)
     
     gca().yaxis.set_major_locator(MaxNLocator(steps=[1,2,3,4,5,6,7,8,9,10], prune = 'both'))
     axes.append(gca())
     if i < len(to_plot)-1:
-        gca().xaxis.set_major_formatter(NullFormatter())
+        gca().tick_params(direction='in',labelsize='small', labelbottom='off')
     else:
         xlabel('Time (seconds)')
+        gca().tick_params(direction='in',labelsize='small')
     ylabel(line['name'])
-    
-    grid(True)
 
-#show() 
-   
+    #grid(True)
+
 win = gtk.Window()
 win.connect("destroy", gtk.main_quit)
 win.set_default_size(400,300)
 win.set_title("Labscript experiment preview")
 
-canvas = FigureCanvas(gcf())  # a gtk.DrawingArea
-win.add(canvas)
+vbox=gtk.VBox()
+win.add(vbox)
+#canvas = FigureCanvas(gcf())  # a gtk.DrawingArea
+canvas =gcf().canvas
+canvas.parent.remove(canvas)
+vbox.pack_start(canvas)
+toolbar = NavigationToolbar(canvas, win)
+
+vbox.pack_start(toolbar,False,False)
 
 
-dy = 0.5
-dx = 0.5
+dy = 1
+dx = 1
 
 class Callbacks:
     def onscroll(self, event):
@@ -200,15 +226,15 @@ class Callbacks:
             xmin, xmax, ymin, ymax = event.inaxes.axis()
             event.inaxes.set_ylim(ymin + event.step*dy, ymax + event.step*dy)
         else:
-            for axis in axes:
-                xmin, xmax, ymin, ymax = axis.axis()
-                axis.set_xlim(xmin + event.step*dy, xmax + event.step*dx)
+            xmin, xmax, ymin, ymax = ax1.axis()
+            ax1.set_xlim(xmin + event.step*dy, xmax + event.step*dx)
         canvas.draw_idle()
 
 
 callbacks = Callbacks()
 canvas.mpl_connect('scroll_event',callbacks.onscroll)
 win.show_all()
+
 gtk.main()
 
 
