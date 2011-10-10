@@ -1,5 +1,4 @@
 import os,sys
-print sys.flags.interactive
 import h5py
 
 from PyQt4 import QtGui, QtCore
@@ -26,7 +25,7 @@ def resample(data_x, data_y):
     just be skipped over as they would with any sort of interpolation."""
     
     print 'resampling!'
-    x_out = float32(linspace(x[0], x[-1], 1000))
+    x_out = float32(linspace(data_x[0], data_x[-1], 1000))
     y_out = empty(len(x_out), dtype=float32)
     _resample(data_x, data_y, x_out, y_out)
     #y_out = __resample3(data_x, data_y, x_out)
@@ -133,14 +132,16 @@ def plot_ni_pcie_6363(devicename):
     device_group = hdf5_file['devices'][device_name]
     analog_outs = device_group['ANALOG_OUTS']
     digital_outs = device_group['DIGITAL_OUTS']
-    acquisitions = device_group['ACQUISITIONS']
+    #acquisitions = device_group['ACQUISITIONS']
     analog_channels = device_group.attrs['analog_out_channels']
     analog_channels = [channel.split('/')[1] for channel in analog_channels.split(',')]
+    to_plot[devicename+' AO'] = []
+    to_plot[devicename+' DO'] = []
     for i, chan in enumerate(analog_channels):
         data = analog_outs[:,i]
         name = name_lookup[devicename, chan]
         #clock, data = discretise(clock,data,clock[-1])
-        to_plot.append({'name':name, 'times':array(clock), 'data':array(data),'device':devicename,'connection':chan})
+        to_plot[devicename+' AO'].append({'name':name, 'times':array(clock), 'data':array(data),'device':devicename,'connection':chan})
     digital_bits = decompose_bitfield(digital_outs[:],32)
     for i in range(32):
         connection = (devicename,'port0/line%d'%i)
@@ -148,69 +149,95 @@ def plot_ni_pcie_6363(devicename):
             data = digital_bits[:,i]
             #clock,data = discretise(clock,data,clock[-1])
             name = name_lookup[connection]
-            to_plot.append({'name':name, 'times':array(clock), 'data':array(data),'device':devicename,'connection':connection})
+            to_plot[devicename+' DO'].append({'name':name, 'times':array(clock), 'data':array(data),'device':devicename,'connection':connection})
 
-if len(sys.argv) == 1:
-    sys.argv.append('example.h5')
+class MainWindow(QtGui.QMainWindow):
+    def __init__(self):
+        QtGui.QWidget.__init__(self)
 
+        
+        centralwidget = QtGui.QWidget(self)
+        central_layout = QtGui.QVBoxLayout(centralwidget)
+        self.setCentralWidget(centralwidget)
+        
+        self.tab_widget = QtGui.QTabWidget()
+        central_layout.addWidget(self.tab_widget)
+        
+        self.plotwidgets = {}
+        
+        self.plot_all()
+        
+    def make_new_tab(self,text):      
 
-plotting_functions = {'ni_pcie_6363':plot_ni_pcie_6363}
-#                      'ni_pci_6733':plot_ni_pci_6733,
-#                      'novatechdds9m':plot_novatechdds9m,
-#                      'pulseblaster':plot_pulseblaster} 
-                      
+        tab = QtGui.QWidget()
+        tab_layout = QtGui.QVBoxLayout(tab)
+        
+        scrollArea = QtGui.QScrollArea()
+        scrollArea.setWidgetResizable(False)
+        scrollArea.setMinimumHeight(800)
+        scrollArea.setMinimumWidth(1920/2)
+        scrollArea.setMaximumHeight(1200)
+        scrollArea.setMaximumWidth(1200)
 
-hdf5_file = open_hdf5_file()
-parent_lookup, connection_lookup, name_lookup = parse_connection_table()
-to_plot = []
-for device_name in hdf5_file['/devices']:
-    device_prefix = '_'.join(device_name.split('_')[:-1])
-    if not device_prefix == 'ni_pcie_6363':
-        continue
-    plotting_functions[device_prefix](device_name)
+        scrollAreaWidgetContents = QtGui.QWidget(scrollArea)
+        scrollAreaWidgetContents.setGeometry(QtCore.QRect(0, 0, 1920/2-20, len(to_plot)*200))
 
-to_plot *= 7
+        scrollArea.setWidget(scrollAreaWidgetContents)
+        scrollarea_layout = QtGui.QVBoxLayout(scrollAreaWidgetContents)
 
-app = QtGui.QApplication([])
-MainWindow = QtGui.QMainWindow()
-centralwidget = QtGui.QWidget(MainWindow)
-verticalLayout = QtGui.QVBoxLayout(centralwidget)
+        tab_layout.addWidget(scrollArea)
+        self.tab_widget.addTab(tab,text)
+        
+        return tab, scrollarea_layout
 
-scrollArea = QtGui.QScrollArea()
-scrollArea.setWidgetResizable(False)
-scrollArea.setMinimumHeight(800)
-scrollArea.setMinimumWidth(1920/2)
-scrollArea.setMaximumHeight(1200)
-scrollArea.setMaximumWidth(1200)
+        
+    def plot_all(self):
+        for outputclass in to_plot:
+            tab, layout = self.make_new_tab(outputclass)
+            self.plotwidgets[tab] = []
+            for i, line in enumerate(to_plot[outputclass]):
+                if i == 0:
+                    pw = pg.PlotWidget(name='Plot0')
+                else:
+                    pw = pg.PlotWidget(name='Plot02%d'%i)
+                    pw.plotItem.setXLink('Plot0')
+                layout.addWidget(pw)
+                
+                x = array(line['times'])
+                y = array(line['data'])
+                if y.dtype != float32:
+                    y = float32(y)
+                xnew, ynew = resample(x,y)
+                plot = pw.plot(y=ynew,x=xnew)
+                self.plotwidgets[tab].append(pw)
 
-verticalLayout.addWidget(scrollArea)
-
-scrollAreaWidgetContents = QtGui.QWidget(scrollArea)
-scrollAreaWidgetContents.setGeometry(QtCore.QRect(0, 0, 1920/2-20, len(to_plot)*200))
-
-scrollArea.setWidget(scrollAreaWidgetContents)
-verticalLayout_2 = QtGui.QVBoxLayout(scrollAreaWidgetContents)
-
-MainWindow.setCentralWidget(centralwidget)
-MainWindow.show()
-
-for i, line in enumerate(to_plot):
-    if i == 0:
-        pw = pg.PlotWidget(name='Plot0')
-    else:
-        pw = pg.PlotWidget(name='Plot02%d'%i)
-        pw.plotItem.setXLink('Plot0')
-    verticalLayout_2.addWidget(pw)
+if __name__ == '__main__':
     
-    x = array(line['times'])
-    y = array(line['data'])
-    if y.dtype != float32:
-        y = float32(y)
-    xnew, ynew = resample(x,y)
-    plot = pw.plot(y=ynew,x=xnew)
+    if len(sys.argv) == 1:
+        sys.argv.append('example.h5')
 
-if sys.flags.interactive != 1:
-    app.exec_()
 
+    plotting_functions = {'ni_pcie_6363':plot_ni_pcie_6363}
+    #                      'ni_pci_6733':plot_ni_pci_6733,
+    #                      'novatechdds9m':plot_novatechdds9m,
+    #                      'pulseblaster':plot_pulseblaster} 
+                          
+
+    hdf5_file = open_hdf5_file()
+    parent_lookup, connection_lookup, name_lookup = parse_connection_table()
+    to_plot = {}
+    for device_name in hdf5_file['/devices']:
+        device_prefix = '_'.join(device_name.split('_')[:-1])
+        if not device_prefix == 'ni_pcie_6363':
+            continue
+        plotting_functions[device_prefix](device_name)
+
+    app = QtGui.QApplication(sys.argv)
+    mainwindow = MainWindow()
+    mainwindow.show()
+    if sys.flags.interactive != 1:
+        sys_exit(app.exec_())
+    else:
+        sys.exit()
 
 
