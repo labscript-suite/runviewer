@@ -132,7 +132,7 @@ def plot_ni_pcie_6363(devicename):
     device_group = hdf5_file['devices'][device_name]
     analog_outs = device_group['ANALOG_OUTS']
     digital_outs = device_group['DIGITAL_OUTS']
-    #acquisitions = device_group['ACQUISITIONS']
+    #acquisitions = device_group['ACQUISITIONS'] TODO
     analog_channels = device_group.attrs['analog_out_channels']
     analog_channels = [channel.split('/')[1] for channel in analog_channels.split(',')]
     to_plot[devicename+' AO'] = []
@@ -149,7 +149,7 @@ def plot_ni_pcie_6363(devicename):
             data = digital_bits[:,i]
             #clock,data = discretise(clock,data,clock[-1])
             name = name_lookup[connection]
-            to_plot[devicename+' DO'].append({'name':name, 'times':array(clock), 'data':array(data),'device':devicename,'connection':connection})
+            to_plot[devicename+' DO'].append({'name':name, 'times':array(clock), 'data':array(data),'device':devicename,'connection':connection[1]})
 
 class MainWindow(QtGui.QMainWindow):
     def __init__(self):
@@ -196,11 +196,13 @@ class MainWindow(QtGui.QMainWindow):
             tab, layout = self.make_new_tab(outputclass)
             self.plotwidgets[tab] = []
             for i, line in enumerate(to_plot[outputclass]):
+                print line['connection']
                 if i == 0:
-                    pw = pg.PlotWidget(name='Plot0')
+                    pw = pg.PlotWidget(name='Plot0',labels={'left':line['name'],'right':line['connection']})
                 else:
-                    pw = pg.PlotWidget(name='Plot02%d'%i)
+                    pw = pg.PlotWidget(name='Plot02%d'%i,labels={'left':line['name'],'right':line['connection']})
                     pw.plotItem.setXLink('Plot0')
+                pw.plotItem.showScale('right')
                 layout.addWidget(pw)
                 
                 x = array(line['times'])
@@ -237,7 +239,5 @@ if __name__ == '__main__':
     mainwindow.show()
     if sys.flags.interactive != 1:
         sys_exit(app.exec_())
-    else:
-        sys.exit()
 
 
