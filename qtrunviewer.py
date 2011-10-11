@@ -25,7 +25,7 @@ def resample(data_x, data_y, xmin, xmax):
     just be skipped over as they would with any sort of interpolation."""
     
     print 'resampling!'
-    x_out = float32(linspace(xmin, xmax, 1000))
+    x_out = float32(linspace(xmin, xmax, 2000))
     y_out = empty(len(x_out), dtype=float32)
     _resample(data_x, data_y, x_out, y_out)
     #y_out = __resample3(data_x, data_y, x_out)
@@ -145,7 +145,7 @@ def plot_ni_pcie_6363(devicename):
         data = analog_outs[:,i]
         name = name_lookup[devicename, chan]
         #clock, data = discretise(clock,data,clock[-1])
-        to_plot[devicename+' AO'].append({'name':name, 'times':array(clock), 'data':array(data),'device':devicename,'connection':chan})
+        to_plot[devicename+' AO'].append({'name':name, 'times':array(clock), 'data':array(data, dtype=float32),'device':devicename,'connection':chan})
     digital_bits = decompose_bitfield(digital_outs[:],32)
     for i in range(32):
         connection = (devicename,'port0/line%d'%i)
@@ -153,25 +153,32 @@ def plot_ni_pcie_6363(devicename):
             data = digital_bits[:,i]
             #clock,data = discretise(clock,data,clock[-1])
             name = name_lookup[connection]
-            to_plot[devicename+' DO'].append({'name':name, 'times':array(clock), 'data':array(data),'device':devicename,'connection':connection[1]})
+            to_plot[devicename+' DO'].append({'name':name, 'times':array(clock), 'data':array(data, dtype=float32),'device':devicename,'connection':connection[1]})
 
 class MainWindow(QtGui.QMainWindow):
     def __init__(self):
         QtGui.QWidget.__init__(self)
 
-        
+        self.setGeometry(QtCore.QRect(0, 0, 800, 800))
         centralwidget = QtGui.QWidget(self)
         central_layout = QtGui.QVBoxLayout(centralwidget)
+        central_layout.setContentsMargins(0, 0, 0, 0)
         self.setCentralWidget(centralwidget)
         
         self.tab_widget = QtGui.QTabWidget()
         central_layout.addWidget(self.tab_widget)
         
+        self.connect(self.tab_widget, QtCore.SIGNAL('currentChanged(int)'),self.on_tab_changed)
+        
         self.plots_by_tab = {}
         self.plots_by_name = {}
+        self.tab_names_by_index = {}
         
+        self.current_tab_index = 0
         self.plot_all()
+        self.resampling_required = True
         self.update_resampling()
+        
         
     def make_new_tab(self,text):      
 
@@ -179,18 +186,18 @@ class MainWindow(QtGui.QMainWindow):
         tab_layout = QtGui.QVBoxLayout(tab)
         
         scrollArea = QtGui.QScrollArea()
-        scrollArea.setWidgetResizable(False)
-        scrollArea.setMinimumHeight(800)
-        scrollArea.setMinimumWidth(1920/2)
-        scrollArea.setMaximumHeight(1200)
-        scrollArea.setMaximumWidth(1200)
+        scrollArea.setWidgetResizable(True)
+        scrollArea.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+
 
         scrollAreaWidgetContents = QtGui.QWidget(scrollArea)
-        scrollAreaWidgetContents.setGeometry(QtCore.QRect(0, 0, 1920/2-20, len(to_plot)*200))
+
 
         scrollArea.setWidget(scrollAreaWidgetContents)
         scrollarea_layout = QtGui.QVBoxLayout(scrollAreaWidgetContents)
-
+        scrollarea_layout.setContentsMargins(0, 0, 0, 0)
+        scrollarea_layout.setSpacing(0)
+        
         tab_layout.addWidget(scrollArea)
         self.tab_widget.addTab(tab,text)
         
@@ -198,26 +205,26 @@ class MainWindow(QtGui.QMainWindow):
 
         
     def plot_all(self):
-        for outputclass in to_plot:
+        for index, outputclass in enumerate(to_plot):
             tab, layout = self.make_new_tab(outputclass)
             self.plots_by_tab[tab] = []
+            self.tab_names_by_index[index] = outputclass
             for i, line in enumerate(to_plot[outputclass]):
                 print line['connection']
                 if i == 0:
-                    pw = pg.PlotWidget(name='Plot0',labels={'left':line['name'],'right':line['connection']})
+                    pw1 = pw = pg.PlotWidget(name='Plot0',labels={'left':line['name'],'right':line['connection']})
                 else:
                     pw = pg.PlotWidget(name='Plot02%d'%i,labels={'left':line['name'],'right':line['connection']})
                     pw.plotItem.setXLink('Plot0')
                 pw.plotItem.showScale('right')
                 layout.addWidget(pw)
                 
-                x = array(line['times'])
-                y = array(line['data'])
-                if y.dtype != float32:
-                    y = float32(y)
+                x = line['times']
+                y = line['data']
                 xnew, ynew = resample(x,y, x[0], x[-1])
                 plot = pw.plot(y=ynew,x=xnew)
-                pw.plotItem.setXRange(x[0], x[-1])
+                pw.plotItem.setManualXScale()
+                pw.plotItem.setXRange(x[0], x[-1],padding=0)
                 pw.plotItem.setManualYScale()
                 ymin = min(ynew)
                 ymax = max(ynew)
@@ -225,17 +232,46 @@ class MainWindow(QtGui.QMainWindow):
                 pw.plotItem.setYRange(ymin - 0.1*dy, ymax + 0.1*dy)
                 self.plots_by_tab[tab].append(pw)
                 self.plots_by_name[line['name']] = pw
+                pw.setMinimumHeight(200)
+                pw.setMaximumHeight(200)
+            pw1.plotItem.sigXRangeChanged.connect(self.on_xrange_changed)
+            layout.addStretch()
     
+    def on_xrange_changed(self, *args):
+        # Resampling only happens every 500ms, if required. We don't
+        # need to call it every time the xrange is changed, that's a
+        # waste of cpu cycles and slows things down majorly.
+        self.resampling_required = True
+        
     def update_resampling(self):
-        for outputclass in to_plot:
-            for line in to_plot[outputclass]:
-                pw = self.plots_by_name[line['name']]
-                rect = pw.plotItem.vb.viewRect()
-                xmin, xmax = rect.left(), rect.width() + rect.left()
-                curve = pw.plotItem.curves[0]
-                xnew, ynew = resample(line['times'],line['data'], xmin, xmax)
-                curve.updateData(ynew, x=xnew)
+        if not self.resampling_required:
+            return
+        self.resampling_required = False
+        outputclass = self.tab_names_by_index[self.current_tab_index]
+        for line in to_plot[outputclass]:
+            pw = self.plots_by_name[line['name']]
+            rect = pw.plotItem.vb.viewRect()
+            xmin, xmax = rect.left(), rect.width() + rect.left()
+            dx = xmax - xmin
+            curve = pw.plotItem.curves[0]
+            # We go a bit outside the visible range so that scrolling
+            # doesn't immediately go off the edge of the data, and the
+            # next resampling might have time to fill in more data before
+            # the user sees any empty space.
+            xnew, ynew = resample(line['times'],line['data'], xmin-0.2*dx, xmax+0.2*dx)
+            curve.updateData(ynew, x=xnew)
                 
+    def on_tab_changed(self, tabindex):
+        newtab = self.tab_widget.widget(tabindex)
+        oldtab = self.tab_widget.widget(self.current_tab_index)
+        if newtab is not oldtab:
+            sourceplot = self.plots_by_tab[oldtab][0]
+            targetplot = self.plots_by_tab[newtab][0]
+            rect = sourceplot.plotItem.vb.viewRect()
+            xmin, xmax = rect.left(), rect.width() + rect.left()
+            targetplot.plotItem.setXRange(xmin, xmax,padding=0)
+        self.current_tab_index = tabindex
+        
 if __name__ == '__main__':
     
     if len(sys.argv) == 1:
@@ -262,8 +298,8 @@ if __name__ == '__main__':
     mainwindow.show()
     t = QtCore.QTimer()
     t.timeout.connect(mainwindow.update_resampling)
-    t.start(300)
+    t.start(500)
     if sys.flags.interactive != 1:
-        sys_exit(app.exec_())
+        sys.exit(app.exec_())
 
 
