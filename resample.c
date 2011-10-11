@@ -45,7 +45,7 @@ resample(PyObject *dummy, PyObject *args)
     int j;
     
     i = 0;
-    j = 0;
+    j = 1;
     
     // Until we get to the data, fill the output array with NaNs (which
     // get ignored when plotted)
@@ -53,10 +53,14 @@ resample(PyObject *dummy, PyObject *args)
         y_out_data[i] = 0.0/0.0;
         i++;
     }
+    // If we're some way into the data, we need to skip ahead to where
+    // we want to get the first datapoint from:
+    while(x_in_data[j] < x_out_data[i]){
+        j++;
+    }
     // Get the first datapoint:
-    y_out_data[i] = y_in_data[0];
+    y_out_data[i] = y_in_data[j-1];
     i++;
-    j++;
     // Get values until we get to the end of the data:
     while((j < n_in) && (i < n_out)){
         // This is 'nearest neighbour on the left' interpolation. It's

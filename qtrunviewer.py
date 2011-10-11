@@ -16,7 +16,7 @@ def decompose_bitfield(intarray,nbits):
         bitarray[:,i] = (intarray & (1 << i)) >> i
     return bitarray
 
-def resample(data_x, data_y):
+def resample(data_x, data_y, xmin, xmax):
     """This is a function for downsampling the data before plotting
     it. Unlike using nearest neighbour interpolation, this method
     preserves the features of the plot. It chooses what value to use based
@@ -25,7 +25,7 @@ def resample(data_x, data_y):
     just be skipped over as they would with any sort of interpolation."""
     
     print 'resampling!'
-    x_out = float32(linspace(data_x[0], data_x[-1], 1000))
+    x_out = float32(linspace(xmin, xmax, 1000))
     y_out = empty(len(x_out), dtype=float32)
     _resample(data_x, data_y, x_out, y_out)
     #y_out = __resample3(data_x, data_y, x_out)
@@ -34,15 +34,19 @@ def resample(data_x, data_y):
 def __resample3(x_in,y_in,x_out):
     y_out = empty(len(x_out))
     i = 0
+    j = 1
     # Until we get to the data, fill the output array with NaNs (which
     # get ignored when plotted)
     while x_out[i] < x_in[0]:
         y_out[i] = float('NaN')
         i += 1
+    # If we're some way into the data, we need to skip ahead to where
+    # we want to get the first datapoint from:
+    while x_in[j] < x_out[i]:
+        j += 1
     # Get the first datapoint:
-    y_out[i] = y_in[0]
+    y_out[i] = y_in[j-1]
     i += 1
-    j = 1
     # Get values until we get to the end of the data:
     while j < len(x_in) and i < len(x_out):
         # This is 'nearest neighbour on the left' interpolation. It's
@@ -163,9 +167,11 @@ class MainWindow(QtGui.QMainWindow):
         self.tab_widget = QtGui.QTabWidget()
         central_layout.addWidget(self.tab_widget)
         
-        self.plotwidgets = {}
+        self.plots_by_tab = {}
+        self.plots_by_name = {}
         
         self.plot_all()
+        self.update_resampling()
         
     def make_new_tab(self,text):      
 
@@ -194,7 +200,7 @@ class MainWindow(QtGui.QMainWindow):
     def plot_all(self):
         for outputclass in to_plot:
             tab, layout = self.make_new_tab(outputclass)
-            self.plotwidgets[tab] = []
+            self.plots_by_tab[tab] = []
             for i, line in enumerate(to_plot[outputclass]):
                 print line['connection']
                 if i == 0:
@@ -209,10 +215,27 @@ class MainWindow(QtGui.QMainWindow):
                 y = array(line['data'])
                 if y.dtype != float32:
                     y = float32(y)
-                xnew, ynew = resample(x,y)
+                xnew, ynew = resample(x,y, x[0], x[-1])
                 plot = pw.plot(y=ynew,x=xnew)
-                self.plotwidgets[tab].append(pw)
-
+                pw.plotItem.setXRange(x[0], x[-1])
+                pw.plotItem.setManualYScale()
+                ymin = min(ynew)
+                ymax = max(ynew)
+                dy = ymax - ymin
+                pw.plotItem.setYRange(ymin - 0.1*dy, ymax + 0.1*dy)
+                self.plots_by_tab[tab].append(pw)
+                self.plots_by_name[line['name']] = pw
+    
+    def update_resampling(self):
+        for outputclass in to_plot:
+            for line in to_plot[outputclass]:
+                pw = self.plots_by_name[line['name']]
+                rect = pw.plotItem.vb.viewRect()
+                xmin, xmax = rect.left(), rect.width() + rect.left()
+                curve = pw.plotItem.curves[0]
+                xnew, ynew = resample(line['times'],line['data'], xmin, xmax)
+                curve.updateData(ynew, x=xnew)
+                
 if __name__ == '__main__':
     
     if len(sys.argv) == 1:
@@ -237,6 +260,9 @@ if __name__ == '__main__':
     app = QtGui.QApplication(sys.argv)
     mainwindow = MainWindow()
     mainwindow.show()
+    t = QtCore.QTimer()
+    t.timeout.connect(mainwindow.update_resampling)
+    t.start(300)
     if sys.flags.interactive != 1:
         sys_exit(app.exec_())
 
