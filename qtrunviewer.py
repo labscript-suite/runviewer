@@ -158,17 +158,42 @@ def plot_ni_pcie_6363(devicename):
 class MainWindow(QtGui.QMainWindow):
     def __init__(self):
         QtGui.QWidget.__init__(self)
-
+        
+        self.setWindowTitle('%s - labscript run viewer'%sys.argv[-1])
         self.setGeometry(QtCore.QRect(0, 0, 800, 800))
-        centralwidget = QtGui.QWidget(self)
-        central_layout = QtGui.QVBoxLayout(centralwidget)
+        
+        central_widget = QtGui.QWidget(self)
+        central_layout = QtGui.QVBoxLayout(central_widget)
         central_layout.setContentsMargins(0, 0, 0, 0)
-        self.setCentralWidget(centralwidget)
         
-        self.tab_widget = QtGui.QTabWidget()
+        self.tab_widget = QtGui.QTabWidget(self)
         central_layout.addWidget(self.tab_widget)
-        
         self.connect(self.tab_widget, QtCore.SIGNAL('currentChanged(int)'),self.on_tab_changed)
+        
+        panel_splitter = QtGui.QSplitter(QtCore.Qt.Vertical, self)
+
+        file_scrollarea = QtGui.QScrollArea(self)
+        file_scrollarea.setWidgetResizable(True)
+        file_scrollarea_contents = QtGui.QWidget(file_scrollarea)
+        file_scrollarea.setWidget(file_scrollarea_contents)
+        file_scrollarea_contents_layout = QtGui.QVBoxLayout(file_scrollarea_contents)
+        file_scrollarea_contents_layout.setContentsMargins(0, 0, 0, 0)
+        self.file_list = QtGui.QListWidget(self)
+        file_scrollarea_contents_layout.addWidget(self.file_list)
+        
+        self.global_list = QtGui.QTextEdit(self)
+        self.global_list.setFontFamily('mono')
+        self.global_list.setLineWrapMode(0)
+        self.global_list.setReadOnly(True)
+        self.global_list.setText('hello, world!')
+        
+        panel_splitter.addWidget(file_scrollarea)
+        panel_splitter.addWidget(self.global_list)
+        
+        splitter = QtGui.QSplitter(QtCore.Qt.Horizontal, self)
+        splitter.addWidget(panel_splitter)
+        splitter.addWidget(central_widget)
+        self.setCentralWidget(splitter)
         
         self.plots_by_tab = {}
         self.plots_by_name = {}
@@ -182,10 +207,10 @@ class MainWindow(QtGui.QMainWindow):
         
     def make_new_tab(self,text):      
 
-        tab = QtGui.QWidget()
+        tab = QtGui.QWidget(self)
         tab_layout = QtGui.QVBoxLayout(tab)
-        
-        scrollArea = QtGui.QScrollArea()
+        tab_layout.setContentsMargins(0, 0, 0, 0)
+        scrollArea = QtGui.QScrollArea(self)
         scrollArea.setWidgetResizable(True)
         scrollArea.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
 

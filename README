@@ -1,0 +1,1 @@
+To compile the C extension and produce the 'resample' module, run 'python setup.py build'.
