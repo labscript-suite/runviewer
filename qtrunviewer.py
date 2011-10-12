@@ -255,7 +255,7 @@ class MainWindow(QtGui.QMainWindow):
     def __init__(self, data_ops, startfolder, startfile):
         QtGui.QWidget.__init__(self)
         self.data_ops = data_ops
-        self.setGeometry(QtCore.QRect(0, 0, 1000, 800))
+        self.setGeometry(QtCore.QRect(20, 40, 1000, 800))
         
         central_widget = QtGui.QWidget(self)
         central_layout = QtGui.QVBoxLayout(central_widget)
