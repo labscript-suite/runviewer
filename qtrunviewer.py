@@ -190,6 +190,31 @@ class FileAndDataOps(object):
                 name = self.name_lookup[connection]
                 data = flags[:,i]
                 self.to_plot[device_name+' flags'].append({'name':name, 'times':clock, 'data':array(data, dtype=float32),'device':device_name,'connection':connection[1]})
+        self.to_plot[device_name+' DDS'] = []
+        for i in range(2):
+            connection = (device_name, 'dds %d'%i)
+            if connection in self.name_lookup:
+                name = self.name_lookup[connection]
+                freqtable = device_group['DDS%d'%i]['FREQ_REGS']
+                amptable = device_group['DDS%d'%i]['AMP_REGS']
+                phasetable = device_group['DDS%d'%i]['PHASE_REGS']
+                freqregs = states['freq%d'%i]
+                ampregs = states['amp%d'%i]
+                phaseregs = states['phase%d'%i]
+                freqs = array(freqtable)[freqregs]
+                amps = array(amptable)[ampregs]
+                phases = array(phasetable)[phaseregs]
+                self.to_plot[device_name+' DDS'].append({'name':name + ' (freq)', 'times':clock,
+                                                         'data':array(freqs, dtype=float32),'device':device_name,
+                                                         'connection':connection[1]})
+                self.to_plot[device_name+' DDS'].append({'name':name + ' (amp)', 'times':clock,
+                                                         'data':array(amps, dtype=float32),'device':device_name,
+                                                         'connection':connection[1]})
+                self.to_plot[device_name+' DDS'].append({'name':name + ' (phase)', 'times':clock,
+                                                         'data':array(phases, dtype=float32),'device':device_name,
+                                                         'connection':connection[1]})
+            if len(self.to_plot[device_name+' DDS']) == 0:
+                del self.to_plot[device_name+' DDS']
                 
 class MainWindow(QtGui.QMainWindow):
     def __init__(self, data_ops):
