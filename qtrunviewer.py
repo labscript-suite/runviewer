@@ -13,7 +13,7 @@ class FileAndDataOps(object):
     def __init__(self):
         self.plotting_functions = {'ni_pcie_6363':self.plot_ni_pcie_6363,
                                   #'ni_pci_6733':plot_ni_pci_6733,
-                                  #'novatechdds9m':plot_novatechdds9m,
+                                  'novatechdds9m':self.plot_novatechdds9m,
                                   'pulseblaster':self.plot_pulseblaster} 
 
     def get_data(self, h5_filename=None):
@@ -172,6 +172,13 @@ class FileAndDataOps(object):
                 name = self.name_lookup[connection]
                 self.to_plot[device_name+' DO'].append({'name':name, 'times':clock, 'data':array(data, dtype=float32),'device':device_name,'connection':connection[1]})
 
+        if len(self.to_plot[device_name+' AO']) == 0:
+            del self.to_plot[device_name+' AO']
+        if len(self.to_plot[device_name+' DO']) == 0:
+            del self.to_plot[device_name+' DO']
+#        if len(self.to_plot[device_name+' AI']) == 0:
+#            del self.to_plot[device_name+' AI']
+                           
     def plot_pulseblaster(self,device_name):
         pb_inst_by_name = {'CONTINUE':0,'STOP': 1, 'LOOP': 2, 'END_LOOP': 3,'BRANCH': 6, 'WAIT': 8}
         pb_inst_by_number = dict((v,k) for k,v in pb_inst_by_name.iteritems())
@@ -216,6 +223,29 @@ class FileAndDataOps(object):
             if len(self.to_plot[device_name+' DDS']) == 0:
                 del self.to_plot[device_name+' DDS']
                 
+                
+    def plot_novatechdds9m(self, device_name):
+        clock = array(self.get_clock(device_name))
+        device_group = self.hdf5_file['devices'][device_name]
+        table_data = device_group['TABLE_DATA']
+        self.to_plot[device_name] = []
+        for i in range(2):
+            connection = (device_name, 'channel %d'%i)
+            if connection in self.name_lookup:
+                name = self.name_lookup[connection]
+                freqs = table_data['freq%d'%i]
+                amps = table_data['amp%d'%i]
+                phases = table_data['phase%d'%i]
+                self.to_plot[device_name].append({'name':name + ' (freq)', 'times':clock,'data':array(freqs, dtype=float32),
+                                                  'device':device_name,'connection':connection[1]})
+                self.to_plot[device_name].append({'name':name + ' (amp)', 'times':clock,'data':array(amps, dtype=float32),
+                                                  'device':device_name,'connection':connection[1]})
+                self.to_plot[device_name].append({'name':name + ' (phase)', 'times':clock, 'data':array(phases, dtype=float32),
+                                                  'device':device_name,'connection':connection[1]})
+            if len(self.to_plot[device_name]) == 0:
+                del self.to_plot[device_name]
+                
+        
 class MainWindow(QtGui.QMainWindow):
     def __init__(self, data_ops):
         QtGui.QWidget.__init__(self)
