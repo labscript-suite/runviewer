@@ -8,6 +8,11 @@ from numpy import *
 
 from resample import resample as _resample
 
+# This provides debug info without having to run from a terminal, and
+# avoids a stupid crash on Windows when there is no command window:
+if not sys.stdout.isatty():
+    sys.stdout = sys.stderr = open('debug.log','w',1)
+    
 class FileAndDataOps(object):
 
     def __init__(self):
