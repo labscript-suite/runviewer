@@ -294,6 +294,9 @@ class MainWindow(QtGui.QMainWindow):
         splitter.setSizes ([200,800])
         self.setCentralWidget(splitter)
         
+        self.progress = QtGui.QProgressBar(self)
+        central_layout.addWidget(self.progress)
+        self.progress.hide()
         self.plots_by_name = {}
 
         self.load_file_list(startfolder, startfile)        
@@ -322,22 +325,22 @@ class MainWindow(QtGui.QMainWindow):
         self.tab_names_by_index = {}
         
         self.loading_new_file = True
-        self.file_list.setEnabled(False)
         self.current_tab_index = 0
         self.tab_widget.clear()
         self.resampling_required = False
         fname = os.path.join(self.folder,str(item.text()))
         self.setWindowTitle('%s - labscript run viewer'%fname)
         self.file_list.setItemSelected(item,True)
-        app.processEvents()
+        self.progress.show()
+        self.tab_widget.hide()
         try:
             self.plot_all(fname)
         except:
             raise
         finally:
+            self.tab_widget.show()
+            self.progress.close()
             self.loading_new_file = False
-            self.file_list.setEnabled(True)
-            self.file_list.setFocus()
                 
     def make_new_tab(self,text):      
 
@@ -366,13 +369,15 @@ class MainWindow(QtGui.QMainWindow):
     def plot_all(self, h5_filename=None):
         to_plot, info_string = data_ops.get_data(h5_filename)
         self.global_list.setText(info_string)
+        self.progress.setMaximum(sum([len(to_plot[outputclass]) for outputclass in to_plot]))
+        progress_index = 0
         for index, outputclass in enumerate(sorted(to_plot)):
-            
             tab, layout = self.make_new_tab(outputclass)
-            
             self.plots_by_tab[tab] = []
             self.tab_names_by_index[index] = outputclass
             for i, line in enumerate(to_plot[outputclass]):
+                self.progress.setValue(progress_index)
+                progress_index += 1
                 if i == 0:
                     pw1 = pw = pg.PlotWidget(name='Plot0',labels={'left':line['name'],'right':line['connection']})
                 else:
@@ -399,15 +404,21 @@ class MainWindow(QtGui.QMainWindow):
                 pw.setMaximumHeight(200)
             pw1.plotItem.sigXRangeChanged.connect(self.on_xrange_changed)
             layout.addStretch()
-        
-        
+        self.reset_x()     
     
     def on_xrange_changed(self, *args):
         # Resampling only happens every 500ms, if required. We don't
         # need to call it every time the xrange is changed, that's a
         # waste of cpu cycles and slows things down majorly.
         self.resampling_required = True
-        
+    
+    def reset_x(self,*args):
+        outputclass = self.tab_names_by_index[self.current_tab_index]
+        for line in data_ops.to_plot[outputclass]:
+            pw = self.plots_by_name[line['name']]
+            x = line['times']
+            pw.plotItem.setXRange(x[0], x[-1],padding=0)
+            
     def update_resampling(self):
         if not self.resampling_required:
             return
@@ -442,8 +453,8 @@ class MainWindow(QtGui.QMainWindow):
         
 if __name__ == '__main__':
     
-#    if len(sys.argv) == 1:
-#        sys.argv.append('example.h5')
+    if len(sys.argv) == 1:
+        sys.argv.append('example.h5')
     
     if len(sys.argv) > 1:
         arg =  sys.argv[1]
