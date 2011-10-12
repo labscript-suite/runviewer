@@ -233,9 +233,9 @@ class FileAndDataOps(object):
             connection = (device_name, 'channel %d'%i)
             if connection in self.name_lookup:
                 name = self.name_lookup[connection]
-                freqs = table_data['freq%d'%i]
-                amps = table_data['amp%d'%i]
-                phases = table_data['phase%d'%i]
+                freqs = table_data['freq%d'%i][1:-2]
+                amps = table_data['amp%d'%i][1:-2]
+                phases = table_data['phase%d'%i][1:-2]
                 self.to_plot[device_name].append({'name':name + ' (freq)', 'times':clock,'data':array(freqs, dtype=float32),
                                                   'device':device_name,'connection':connection[1]})
                 self.to_plot[device_name].append({'name':name + ' (amp)', 'times':clock,'data':array(amps, dtype=float32),
@@ -357,6 +357,7 @@ class MainWindow(QtGui.QMainWindow):
                 
                 x = line['times']
                 y = line['data']
+                assert len(x) == len(y)
                 xnew, ynew = data_ops.resample(x,y, x[0], x[-1])
                 plot = pw.plot(y=ynew,x=xnew)
                 pw.plotItem.setManualXScale()
