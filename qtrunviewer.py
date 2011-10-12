@@ -11,10 +11,10 @@ from resample import resample as _resample
 class FileAndDataOps(object):
 
     def __init__(self):
-        self.plotting_functions = {'ni_pcie_6363':self.plot_ni_pcie_6363}
+        self.plotting_functions = {'ni_pcie_6363':self.plot_ni_pcie_6363,
                                   #'ni_pci_6733':plot_ni_pci_6733,
                                   #'novatechdds9m':plot_novatechdds9m,
-                                  #'pulseblaster':plot_pulseblaster} 
+                                  'pulseblaster':self.plot_pulseblaster} 
 
     def get_data(self, h5_filename=None):
         self.hdf5_file = self.open_hdf5_file(h5_filename)
@@ -141,13 +141,17 @@ class FileAndDataOps(object):
             device_name = self.parent_lookup[device_name]
             ancestry.append(device_name)
         clocking_device = ancestry[-2]
-        clock_type = self.connection_lookup[ancestry[-3]]
-        clock_type = {'fast clock':'FAST_CLOCK','slow_clock':'SLOW_CLOCK'}[clock_type]
+        try:
+            clock_type = self.connection_lookup[ancestry[-3]]
+        except IndexError:
+            # Must be a pulseblaster:
+            clock_type = 'slow clock'   
+        clock_type = {'fast clock':'FAST_CLOCK','slow clock':'SLOW_CLOCK'}[clock_type]
         clock_array = self.hdf5_file['devices'][clocking_device][clock_type]
         return clock_array
         
     def plot_ni_pcie_6363(self, device_name):
-        clock = self.get_clock(device_name)
+        clock = array(self.get_clock(device_name))
         device_group = self.hdf5_file['devices'][device_name]
         analog_outs = device_group['ANALOG_OUTS']
         digital_outs = device_group['DIGITAL_OUTS']
@@ -159,16 +163,34 @@ class FileAndDataOps(object):
         for i, chan in enumerate(analog_channels):
             data = analog_outs[:,i]
             name = self.name_lookup[device_name, chan]
-            self.to_plot[device_name+' AO'].append({'name':name, 'times':array(clock), 'data':array(data, dtype=float32),'device':device_name,'connection':chan})
+            self.to_plot[device_name+' AO'].append({'name':name, 'times':clock, 'data':array(data, dtype=float32),'device':device_name,'connection':chan})
         digital_bits = self.decompose_bitfield(digital_outs[:],32)
         for i in range(32):
             connection = (device_name,'port0/line%d'%i)
             if connection in self.name_lookup:
                 data = digital_bits[:,i]
                 name = self.name_lookup[connection]
-                self.to_plot[device_name+' DO'].append({'name':name, 'times':array(clock), 'data':array(data, dtype=float32),'device':device_name,'connection':connection[1]})
+                self.to_plot[device_name+' DO'].append({'name':name, 'times':clock, 'data':array(data, dtype=float32),'device':device_name,'connection':connection[1]})
 
-
+    def plot_pulseblaster(self,device_name):
+        pb_inst_by_name = {'CONTINUE':0,'STOP': 1, 'LOOP': 2, 'END_LOOP': 3,'BRANCH': 6, 'WAIT': 8}
+        pb_inst_by_number = dict((v,k) for k,v in pb_inst_by_name.iteritems())
+        clock = array(self.get_clock(device_name))
+        device_group = self.hdf5_file['devices'][device_name]
+        pulse_program = device_group['PULSE_PROGRAM']
+        clock_indices = device_group['CLOCK_INDICES']
+        flags = empty(len(clock), dtype = uint32)
+        states = pulse_program[clock_indices]
+        flags = states['flags']
+        flags = self.decompose_bitfield(flags, 12)
+        self.to_plot[device_name+' flags'] = []
+        for i in range(12):
+            connection = (device_name, 'flag %d'%i)
+            if connection in self.name_lookup:
+                name = self.name_lookup[connection]
+                data = flags[:,i]
+                self.to_plot[device_name+' flags'].append({'name':name, 'times':clock, 'data':array(data, dtype=float32),'device':device_name,'connection':connection[1]})
+                
 class MainWindow(QtGui.QMainWindow):
     def __init__(self, data_ops):
         QtGui.QWidget.__init__(self)
