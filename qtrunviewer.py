@@ -247,7 +247,7 @@ class FileAndDataOps(object):
                 
         
 class MainWindow(QtGui.QMainWindow):
-    def __init__(self, data_ops):
+    def __init__(self, data_ops, startfolder, startfile):
         QtGui.QWidget.__init__(self)
         self.data_ops = data_ops
         self.setGeometry(QtCore.QRect(0, 0, 1000, 800))
@@ -289,7 +289,7 @@ class MainWindow(QtGui.QMainWindow):
         splitter.setSizes ([200,800])
         self.setCentralWidget(splitter)
         
-        self.load_file_list(os.getcwd())        
+        self.load_file_list(startfolder, startfile)        
         
         self.show()
         self.t = QtCore.QTimer()
@@ -297,23 +297,29 @@ class MainWindow(QtGui.QMainWindow):
         self.resampling_required = False
         self.t.start(500)
     
-    def load_file_list(self, folder):
+    def load_file_list(self, folder, filename):
         self.folder = folder
         h5_files = [name for name in os.listdir(folder) if name.endswith('.h5')]
         self.file_list.insertItems(0, sorted(h5_files))
-        self.file_list.setCurrentItem(self.file_list.item(0))
-        
+        if filename is None:
+            self.file_list.setCurrentItem(self.file_list.item(0))
+        else:
+            fileitem =  self.file_list.findItems(filename,QtCore.Qt.MatchFlags(1))[0]
+            self.file_list.setCurrentItem(fileitem)
+             
     def on_file_selection_changed(self,item):
         self.plots_by_tab = {}
         self.plots_by_name = {}
         self.tab_names_by_index = {}
         
+        self.loading_new_file = True
         self.current_tab_index = 0
         self.tab_widget.clear()
         self.resampling_required = False
         fname = os.path.join(self.folder,str(item.text()))
         self.setWindowTitle('%s - labscript run viewer'%fname)
         self.plot_all(fname)
+        self.loading_new_file = False
                 
     def make_new_tab(self,text):      
 
@@ -342,7 +348,7 @@ class MainWindow(QtGui.QMainWindow):
     def plot_all(self, h5_filename=None):
         to_plot, info_string = data_ops.get_data(h5_filename)
         self.global_list.setText(info_string)
-        for index, outputclass in enumerate(to_plot):
+        for index, outputclass in enumerate(sorted(to_plot)):
             tab, layout = self.make_new_tab(outputclass)
             self.plots_by_tab[tab] = []
             self.tab_names_by_index[index] = outputclass
@@ -399,6 +405,9 @@ class MainWindow(QtGui.QMainWindow):
             curve.updateData(ynew, x=xnew)
                 
     def on_tab_changed(self, tabindex):
+        if self.loading_new_file:
+            # ignore the tab changes due to tab creation and destruction:
+            return
         newtab = self.tab_widget.widget(tabindex)
         oldtab = self.tab_widget.widget(self.current_tab_index)
         if oldtab and (newtab is not oldtab):
@@ -414,9 +423,20 @@ if __name__ == '__main__':
 #    if len(sys.argv) == 1:
 #        sys.argv.append('example.h5')
     
+    if len(sys.argv) > 1:
+        arg =  sys.argv[1]
+        if os.path.isdir(arg):
+            startfolder = arg
+            startfile = None
+        elif os.path.exists(arg):
+            startfolder, startfile = os.path.split(os.path.abspath(arg))
+    else:
+        startfolder = os.getcwd()
+        startfile = None
+        
     data_ops = FileAndDataOps()
     app = QtGui.QApplication(sys.argv)
-    gui = MainWindow(data_ops)
+    gui = MainWindow(data_ops, startfolder, startfile)
     
     if sys.flags.interactive != 1:
         sys.exit(app.exec_())
