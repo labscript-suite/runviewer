@@ -294,6 +294,8 @@ class MainWindow(QtGui.QMainWindow):
         splitter.setSizes ([200,800])
         self.setCentralWidget(splitter)
         
+        self.plots_by_name = {}
+
         self.load_file_list(startfolder, startfile)        
         
         self.show()
@@ -314,17 +316,26 @@ class MainWindow(QtGui.QMainWindow):
              
     def on_file_selection_changed(self,item):
         self.plots_by_tab = {}
+        for pw in self.plots_by_name.values():
+            pw.close()
         self.plots_by_name = {}
         self.tab_names_by_index = {}
         
         self.loading_new_file = True
+        self.file_list.setEnabled(False)
         self.current_tab_index = 0
         self.tab_widget.clear()
         self.resampling_required = False
         fname = os.path.join(self.folder,str(item.text()))
         self.setWindowTitle('%s - labscript run viewer'%fname)
-        self.plot_all(fname)
-        self.loading_new_file = False
+        app.processEvents()
+        try:
+            self.plot_all(fname)
+        except:
+            raise
+        finally:
+            self.loading_new_file = False
+            self.file_list.setEnabled(True)
                 
     def make_new_tab(self,text):      
 
@@ -354,14 +365,16 @@ class MainWindow(QtGui.QMainWindow):
         to_plot, info_string = data_ops.get_data(h5_filename)
         self.global_list.setText(info_string)
         for index, outputclass in enumerate(sorted(to_plot)):
+            
             tab, layout = self.make_new_tab(outputclass)
+            
             self.plots_by_tab[tab] = []
             self.tab_names_by_index[index] = outputclass
             for i, line in enumerate(to_plot[outputclass]):
                 if i == 0:
                     pw1 = pw = pg.PlotWidget(name='Plot0',labels={'left':line['name'],'right':line['connection']})
                 else:
-                    pw = pg.PlotWidget(name='Plot02%d'%i,labels={'left':line['name'],'right':line['connection']})
+                    pw = pg.PlotWidget(name='Plot%d'%i,labels={'left':line['name'],'right':line['connection']})
                     pw.plotItem.setXLink('Plot0')
                 pw.plotItem.showScale('right')
                 layout.addWidget(pw)
@@ -384,6 +397,8 @@ class MainWindow(QtGui.QMainWindow):
                 pw.setMaximumHeight(200)
             pw1.plotItem.sigXRangeChanged.connect(self.on_xrange_changed)
             layout.addStretch()
+        
+        
     
     def on_xrange_changed(self, *args):
         # Resampling only happens every 500ms, if required. We don't
