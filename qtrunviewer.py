@@ -298,10 +298,9 @@ class MainWindow(QtGui.QMainWindow):
         central_layout.addWidget(self.progress)
         self.progress.hide()
         self.plots_by_name = {}
-
-        self.load_file_list(startfolder, startfile)        
-        
+        self.file_list.setFocus()
         self.show()
+        self.load_file_list(startfolder, startfile)        
         self.t = QtCore.QTimer()
         self.t.timeout.connect(self.update_resampling)
         self.resampling_required = False
@@ -341,7 +340,7 @@ class MainWindow(QtGui.QMainWindow):
             self.tab_widget.show()
             self.progress.close()
             self.loading_new_file = False
-                
+            
     def make_new_tab(self,text):      
 
         tab = QtGui.QWidget(self)
@@ -453,9 +452,6 @@ class MainWindow(QtGui.QMainWindow):
         
 if __name__ == '__main__':
     
-    if len(sys.argv) == 1:
-        sys.argv.append('example.h5')
-    
     if len(sys.argv) > 1:
         arg =  sys.argv[1]
         if os.path.isdir(arg):
@@ -463,6 +459,10 @@ if __name__ == '__main__':
             startfile = None
         elif os.path.exists(arg):
             startfolder, startfile = os.path.split(os.path.abspath(arg))
+        elif os.path.exists(os.path.split(arg)[0]):
+            startfolder, startfile = os.path.abspath(os.path.split(arg)[0]), None
+        else:
+            startfolder, startfile = os.getcwd(), None
     else:
         startfolder = os.getcwd()
         startfile = None
