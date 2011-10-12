@@ -328,6 +328,7 @@ class MainWindow(QtGui.QMainWindow):
         self.resampling_required = False
         fname = os.path.join(self.folder,str(item.text()))
         self.setWindowTitle('%s - labscript run viewer'%fname)
+        self.file_list.setItemSelected(item,True)
         app.processEvents()
         try:
             self.plot_all(fname)
@@ -336,6 +337,7 @@ class MainWindow(QtGui.QMainWindow):
         finally:
             self.loading_new_file = False
             self.file_list.setEnabled(True)
+            self.file_list.setFocus()
                 
     def make_new_tab(self,text):      
 
