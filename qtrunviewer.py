@@ -160,29 +160,60 @@ class FileAndDataOps(object):
         device_group = self.hdf5_file['devices'][device_name]
         analog_outs = device_group['ANALOG_OUTS']
         digital_outs = device_group['DIGITAL_OUTS']
-        #acquisitions = device_group['ACQUISITIONS'] TODO
+        acquisitions = device_group['ACQUISITIONS']
         analog_channels = device_group.attrs['analog_out_channels']
         analog_channels = [channel.split('/')[1] for channel in analog_channels.split(',')]
         self.to_plot[device_name+' AO'] = []
+        self.to_plot[device_name+' AI'] = []
         self.to_plot[device_name+' DO'] = []
         for i, chan in enumerate(analog_channels):
             data = analog_outs[:,i]
             name = self.name_lookup[device_name, chan]
-            self.to_plot[device_name+' AO'].append({'name':name, 'times':clock, 'data':array(data, dtype=float32),'device':device_name,'connection':chan})
+            self.to_plot[device_name+' AO'].append({'name':name, 'times':clock, 'data':array(data, dtype=float32),
+                                                    'device':device_name,'connection':chan,'downsample':True})
         digital_bits = self.decompose_bitfield(digital_outs[:],32)
         for i in range(32):
             connection = (device_name,'port0/line%d'%i)
             if connection in self.name_lookup:
                 data = digital_bits[:,i]
                 name = self.name_lookup[connection]
-                self.to_plot[device_name+' DO'].append({'name':name, 'times':clock, 'data':array(data, dtype=float32),'device':device_name,'connection':connection[1]})
-
+                self.to_plot[device_name+' DO'].append({'name':name, 'times':clock, 'data':array(data, dtype=float32),
+                                                        'device':device_name,'connection':connection[1], 'downsample':True})
+        input_chans = {}
+        for i, acquisition in enumerate(acquisitions):
+            chan = acquisition['connection']
+            if chan not in input_chans:
+                input_chans[chan] = []
+            input_chans[chan].append(acquisition)
+        for chan in input_chans:
+            name = self.name_lookup[device_name, chan]
+            times = []
+            gate = []
+            labels = {} # For putting text on the plot at specified x points
+            for acquisition in input_chans[chan]:
+                start = acquisition['start']
+                stop = acquisition['stop']
+                labels[start] = acquisition['label']
+                # A square pulse:
+                times.extend(2*[start])
+                times.extend(2*[stop])
+                gate.extend([0,1,1,0])
+            if not 0 in times:
+                times.insert(0,0)
+                gate.insert(0,0)
+            if not clock[-1] in times:
+                times.append(clock[-1])
+                gate.append(0)
+            self.to_plot[device_name+' AI'].append({'name':name, 'times':array(times, dtype=float32), 
+                                                    'data':array(gate, dtype=float32),'device':device_name,
+                                                    'connection':chan,'labels':labels, 'downsample':False})
+        
         if len(self.to_plot[device_name+' AO']) == 0:
             del self.to_plot[device_name+' AO']
         if len(self.to_plot[device_name+' DO']) == 0:
             del self.to_plot[device_name+' DO']
-#        if len(self.to_plot[device_name+' AI']) == 0:
-#            del self.to_plot[device_name+' AI']
+        if len(self.to_plot[device_name+' AI']) == 0:
+            del self.to_plot[device_name+' AI']
                            
     def plot_pulseblaster(self,device_name):
         pb_inst_by_name = {'CONTINUE':0,'STOP': 1, 'LOOP': 2, 'END_LOOP': 3,'BRANCH': 6, 'WAIT': 8}
@@ -201,7 +232,8 @@ class FileAndDataOps(object):
             if connection in self.name_lookup:
                 name = self.name_lookup[connection]
                 data = flags[:,i]
-                self.to_plot[device_name+' flags'].append({'name':name, 'times':clock, 'data':array(data, dtype=float32),'device':device_name,'connection':connection[1]})
+                self.to_plot[device_name+' flags'].append({'name':name, 'times':clock, 'data':array(data, dtype=float32),
+                                                           'device':device_name,'connection':connection[1],'downsample':True})
         self.to_plot[device_name+' DDS'] = []
         for i in range(2):
             connection = (device_name, 'dds %d'%i)
@@ -218,13 +250,13 @@ class FileAndDataOps(object):
                 phases = array(phasetable)[phaseregs]
                 self.to_plot[device_name+' DDS'].append({'name':name + ' (freq)', 'times':clock,
                                                          'data':array(freqs, dtype=float32),'device':device_name,
-                                                         'connection':connection[1]})
+                                                         'connection':connection[1],'downsample':True})
                 self.to_plot[device_name+' DDS'].append({'name':name + ' (amp)', 'times':clock,
                                                          'data':array(amps, dtype=float32),'device':device_name,
-                                                         'connection':connection[1]})
+                                                         'connection':connection[1],'downsample':True})
                 self.to_plot[device_name+' DDS'].append({'name':name + ' (phase)', 'times':clock,
                                                          'data':array(phases, dtype=float32),'device':device_name,
-                                                         'connection':connection[1]})
+                                                         'connection':connection[1],'downsample':True})
             if len(self.to_plot[device_name+' DDS']) == 0:
                 del self.to_plot[device_name+' DDS']
                 
@@ -242,11 +274,11 @@ class FileAndDataOps(object):
                 amps = table_data['amp%d'%i][1:-2]
                 phases = table_data['phase%d'%i][1:-2]
                 self.to_plot[device_name].append({'name':name + ' (freq)', 'times':clock,'data':array(freqs, dtype=float32),
-                                                  'device':device_name,'connection':connection[1]})
+                                                  'device':device_name,'connection':connection[1],'downsample':True})
                 self.to_plot[device_name].append({'name':name + ' (amp)', 'times':clock,'data':array(amps, dtype=float32),
-                                                  'device':device_name,'connection':connection[1]})
+                                                  'device':device_name,'connection':connection[1],'downsample':True})
                 self.to_plot[device_name].append({'name':name + ' (phase)', 'times':clock, 'data':array(phases, dtype=float32),
-                                                  'device':device_name,'connection':connection[1]})
+                                                  'device':device_name,'connection':connection[1],'downsample':True})
             if len(self.to_plot[device_name]) == 0:
                 del self.to_plot[device_name]
                 
@@ -388,7 +420,10 @@ class MainWindow(QtGui.QMainWindow):
                 x = line['times']
                 y = line['data']
                 assert len(x) == len(y)
-                xnew, ynew = data_ops.resample(x,y, x[0], x[-1])
+                if line['downsample']:
+                    xnew, ynew = data_ops.resample(x,y, x[0], x[-1])
+                else:
+                    xnew, ynew = x,y
                 plot = pw.plot(y=ynew,x=xnew)
                 pw.plotItem.setManualXScale()
                 pw.plotItem.setXRange(x[0], x[-1],padding=0)
@@ -424,6 +459,8 @@ class MainWindow(QtGui.QMainWindow):
         self.resampling_required = False
         outputclass = self.tab_names_by_index[self.current_tab_index]
         for line in data_ops.to_plot[outputclass]:
+            if not line['downsample']:
+                continue
             pw = self.plots_by_name[line['name']]
             rect = pw.plotItem.vb.viewRect()
             xmin, xmax = rect.left(), rect.width() + rect.left()
