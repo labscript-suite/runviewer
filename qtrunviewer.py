@@ -416,7 +416,17 @@ class MainWindow(QtGui.QMainWindow):
                     pw.plotItem.setXLink('Plot0')
                 pw.plotItem.showScale('right')
                 layout.addWidget(pw)
-                
+                if 'labels' in line:
+                    for x in line['labels']:
+                        textitem = QtGui.QGraphicsTextItem(line['labels'][x])
+                        pw.plotItem.addItem(textitem)
+                        textitem.setPos(x,0)
+                        textitem.setFont(QtGui.QFont('mono', 11))
+                        textitem.rotate(-90)
+                        textitem.setDefaultTextColor(QtGui.QColor('white')) 
+                        textitem.setFlag(textitem.ItemIgnoresTransformations)
+                        textitem.show()
+                        
                 x = line['times']
                 y = line['data']
                 assert len(x) == len(y)
@@ -486,7 +496,7 @@ class MainWindow(QtGui.QMainWindow):
             xmin, xmax = rect.left(), rect.width() + rect.left()
             targetplot.plotItem.setXRange(xmin, xmax,padding=0)
         self.current_tab_index = tabindex
-        
+
 if __name__ == '__main__':
     
     if len(sys.argv) > 1:
