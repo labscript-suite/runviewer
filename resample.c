@@ -8,9 +8,11 @@ resample(PyObject *dummy, PyObject *args)
 {
     // Parse the input arguments:
     PyObject *arg1=NULL, *arg2=NULL, *arg3=NULL, *out=NULL;
-    PyObject *x_in=NULL, *y_in=NULL, *x_out=NULL, *y_out=NULL;
-    if (!PyArg_ParseTuple(args, "OOOO!", &arg1, &arg2, &arg3,
-        &PyArray_Type, &out)) return NULL;
+    PyObject *x_in=NULL, *y_in=NULL, *x_out=NULL, *y_out=NULL; 
+    float stop_time;
+    
+    if (!PyArg_ParseTuple(args, "OOOO!f", &arg1, &arg2, &arg3,
+        &PyArray_Type, &out, &stop_time)) return NULL;
 
     // Convert the input objects to np arrays:
     x_in = PyArray_FROM_OTF(arg1, NPY_FLOAT, NPY_IN_ARRAY);
@@ -46,49 +48,76 @@ resample(PyObject *dummy, PyObject *args)
     
     i = 0;
     j = 1;
-    
-    // Until we get to the data, fill the output array with NaNs (which
-    // get ignored when plotted)
-    while(x_out_data[i] < x_in_data[0]){
-        y_out_data[i] = 0.0/0.0;
-        i++;
+    // A couple of special cases that I don't want to have to put extra checks in for:
+    if(x_out_data[n_out - 1] < x_in_data[0] || x_out_data[0] > stop_time){
+        // We're all the way to the left of the data or all the way to the right. Fill with NaNs:
+        while(i < n_out){
+            y_out_data[i] = 0.0/0.0;
+            i++;
+        }
     }
-    // If we're some way into the data, we need to skip ahead to where
-    // we want to get the first datapoint from:
-    while(x_in_data[j] < x_out_data[i]){
-        j++;
-    }
-    // Get the first datapoint:
-    y_out_data[i] = y_in_data[j-1];
-    i++;
-    // Get values until we get to the end of the data:
-    while((j < n_in) && (i < n_out)){
-        // This is 'nearest neighbour on the left' interpolation. It's
-        // what we want if none of the source values checked in the
-        // upcoming loop are used:
-        y_out_data[i] = y_in_data[j-1];
-        while((j < n_in) && (x_in_data[j] < x_out_data[i])){
-            // Would using this source value cause the interpolated values
-            // to make a bigger jump?
-            if(abs(y_in_data[j] - y_out_data[i-1]) > abs(y_out_data[i] - y_out_data[i-1])){
-                // If so, use this source value:
-                y_out_data[i] = y_in_data[j];
+    else if(x_out_data[0] > x_in_data[n_in-1]){
+        // We're after the final clock tick, but before stop_time
+        while(i < n_out){
+            if(x_out_data[i] < stop_time){
+                y_out_data[i] = y_in_data[n_in-1];
             }
+            else{
+                y_out_data[i] = 0.0/0.0;
+            }
+            i++;
+        }
+    }
+    else{
+        // Until we get to the data, fill the output array with NaNs (which
+        // get ignored when plotted)
+        while(x_out_data[i] < x_in_data[0]){
+            y_out_data[i] = 0.0/0.0;
+            i++;
+        }
+        // If we're some way into the data, we need to skip ahead to where
+        // we want to get the first datapoint from:
+        while(x_in_data[j] < x_out_data[i]){
             j++;
         }
+        // Get the first datapoint:
+        y_out_data[i] = y_in_data[j-1];
         i++;
+        // Get values until we get to the end of the data:
+        while((j < n_in) && (i < n_out)){
+            // This is 'nearest neighbour on the left' interpolation. It's
+            // what we want if none of the source values checked in the
+            // upcoming loop are used:
+            y_out_data[i] = y_in_data[j-1];
+            while((j < n_in) && (x_in_data[j] < x_out_data[i])){
+                // Would using this source value cause the interpolated values
+                // to make a bigger jump?
+                if(abs(y_in_data[j] - y_out_data[i-1]) > abs(y_out_data[i] - y_out_data[i-1])){
+                    // If so, use this source value:
+                    y_out_data[i] = y_in_data[j];
+                }
+                j++;
+            }
+            i++;
+        }
+        // Get the last datapoint, if we got that far:
+        if(i < n_out){
+            y_out_data[i] = y_in_data[n_in - 1];
+            i++;
+        }
+        // Fill the remainder of the array with the last datapoint,
+        // if t < stop_time, and then NaNs after that:
+        while(i < n_out){
+            if(x_out_data[i] < stop_time){
+                y_out_data[i] = y_in_data[n_in-1];
+            }
+            else{
+                y_out_data[i] = 0.0/0.0;
+            }
+            i++;
+        }
     }
-    // Get the last datapoint, if we got that far:
-    if(i < n_out){
-        y_out_data[i] = y_in_data[n_in - 1];
-        i++;
-    }
-    // Fill the remainder of the array with NaNs:
-    while(i < n_out){
-        y_out_data[i] = 0.0/0.0;
-        i++;
-    }
-
+    
     Py_DECREF(x_in);
     Py_DECREF(y_in);
     Py_DECREF(x_out);

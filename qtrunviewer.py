@@ -17,7 +17,7 @@ class FileAndDataOps(object):
 
     def __init__(self):
         self.plotting_functions = {'ni_pcie_6363':self.plot_ni_pcie_6363,
-                                  #'ni_pci_6733':plot_ni_pci_6733,
+                                   'ni_pci_6733':self.plot_ni_pci_6733,
                                   'novatechdds9m':self.plot_novatechdds9m,
                                   'pulseblaster':self.plot_pulseblaster} 
 
@@ -51,58 +51,79 @@ class FileAndDataOps(object):
             bitarray[:,i] = (intarray & (1 << i)) >> i
         return bitarray
 
-    def resample(self,data_x, data_y, xmin, xmax):
+    def resample(self,data_x, data_y, xmin, xmax, stop_time):
         """This is a function for downsampling the data before plotting
         it. Unlike using nearest neighbour interpolation, this method
-        preserves the features of the plot. It chooses what value to use based
-        on what values within a region are most different from the values
-        it's already chosen. This way, spikes of a short duration won't
-        just be skipped over as they would with any sort of interpolation."""
-        
+        preserves the features of the plot. It chooses what value to
+        use based on what values within a region are most different
+        from the values it's already chosen. This way, spikes of a short
+        duration won't just be skipped over as they would with any sort
+        of interpolation."""
         x_out = float32(linspace(xmin, xmax, 2000))
         y_out = empty(len(x_out), dtype=float32)
-        _resample(data_x, data_y, x_out, y_out)
-        #y_out = __resample3(data_x, data_y, x_out)
+        _resample(data_x, data_y, x_out, y_out,float32(stop_time))
+        #y_out = self.__resample3(data_x, data_y, x_out,float32(stop_time))
         return x_out, y_out
         
-    def __resample3(self,x_in,y_in,x_out):
+    def __resample3(self,x_in,y_in,x_out, stop_time):
+        """This is a Python implementation of the C extension. For
+        debugging and developing the C extension."""
         y_out = empty(len(x_out))
         i = 0
         j = 1
-        # Until we get to the data, fill the output array with NaNs (which
-        # get ignored when plotted)
-        while x_out[i] < x_in[0]:
-            y_out[i] = float('NaN')
-            i += 1
-        # If we're some way into the data, we need to skip ahead to where
-        # we want to get the first datapoint from:
-        while x_in[j] < x_out[i]:
-            j += 1
-        # Get the first datapoint:
-        y_out[i] = y_in[j-1]
-        i += 1
-        # Get values until we get to the end of the data:
-        while j < len(x_in) and i < len(x_out):
-            # This is 'nearest neighbour on the left' interpolation. It's
-            # what we want if none of the source values checked in the
-            # upcoming loop are used:
+        # A couple of special cases that I don't want to have to put extra checks in for:
+        if x_out[-1] < x_in[0] or x_out[0] > stop_time:
+            # We're all the way to the left of the data or all the way to the right. Fill with NaNs:
+            while i < len(x_out):
+                y_out[i] = float('NaN')
+                i += 1
+        elif x_out[0] > x_in[-1]:
+            # We're after the final clock tick, but before stop_time
+            while i < len(x_out):
+                if x_out[i] < stop_time:
+                    y_out[i] = y_in[-1]
+                else:
+                    y_out[i] = float('NaN')
+                i += 1
+        else:
+            # Until we get to the data, fill the output array with NaNs (which
+            # get ignored when plotted)
+            while x_out[i] < x_in[0]:
+                y_out[i] = float('NaN')
+                i += 1
+            # If we're some way into the data, we need to skip ahead to where
+            # we want to get the first datapoint from:
+            while x_in[j] < x_out[i]:
+                j += 1
+            # Get the first datapoint:
             y_out[i] = y_in[j-1]
-            while j < len(x_in) and x_in[j] < x_out[i]:
-                # Would using this source value cause the interpolated values
-                # to make a bigger jump?
-                if abs(y_in[j] - y_out[i-1]) > abs(y_out[i] - y_out[i-1]):
-                    # If so, use this source value:
-                    y_out[i] = y_in[j]
-                j+=1
             i += 1
-        # Get the last datapoint:
-        if i < len(x_out):
-            y_out[i] = y_in[-1]
-            i += 1
-        # Fill the remainder of the array with NaNs:
-        while i < len(x_out):
-            y_out[i] = float('NaN')
-            i += 1
+            # Get values until we get to the end of the data:
+            while j < len(x_in) and i < len(x_out):
+                # This is 'nearest neighbour on the left' interpolation. It's
+                # what we want if none of the source values checked in the
+                # upcoming loop are used:
+                y_out[i] = y_in[j-1]
+                while j < len(x_in) and x_in[j] < x_out[i]:
+                    # Would using this source value cause the interpolated values
+                    # to make a bigger jump?
+                    if abs(y_in[j] - y_out[i-1]) > abs(y_out[i] - y_out[i-1]):
+                        # If so, use this source value:
+                        y_out[i] = y_in[j]
+                    j+=1
+                i += 1
+            # Get the last datapoint:
+            if i < len(x_out):
+                y_out[i] = y_in[-1]
+                i += 1
+            # Fill the remainder of the array with the last datapoint,
+            # if t < stop_time, and then NaNs after that:
+            while i < len(x_out):
+                if x_out[i] < stop_time:
+                    y_out[i] = y_in[-1]
+                else:
+                    y_out[i] = float('NaN')
+                i += 1
         return y_out
         
     def open_hdf5_file(self,hdf5_filename=None):
@@ -153,10 +174,11 @@ class FileAndDataOps(object):
             clock_type = 'slow clock'   
         clock_type = {'fast clock':'FAST_CLOCK','slow clock':'SLOW_CLOCK'}[clock_type]
         clock_array = self.hdf5_file['devices'][clocking_device][clock_type]
-        return clock_array
+        stop_time = self.hdf5_file['devices'][clocking_device].attrs['stop_time']
+        return stop_time, array(clock_array)
         
     def plot_ni_card(self, device_name, n_digitals):
-        clock = array(self.get_clock(device_name))
+        stop_time, clock = self.get_clock(device_name)
         device_group = self.hdf5_file['devices'][device_name]
         analog_outs = device_group['ANALOG_OUTS']
         digital_outs = device_group['DIGITAL_OUTS']
@@ -170,7 +192,7 @@ class FileAndDataOps(object):
             data = analog_outs[:,i]
             name = self.name_lookup[device_name, chan]
             self.to_plot[device_name+' AO'].append({'name':name, 'times':clock, 'data':array(data, dtype=float32),
-                                                    'device':device_name,'connection':chan,'downsample':True})
+                                                    'device':device_name,'connection':chan,'stop_time':stop_time})
         digital_bits = self.decompose_bitfield(digital_outs[:],n_digitals)
         for i in range(32):
             connection = (device_name,'port0/line%d'%i)
@@ -178,7 +200,7 @@ class FileAndDataOps(object):
                 data = digital_bits[:,i]
                 name = self.name_lookup[connection]
                 self.to_plot[device_name+' DO'].append({'name':name, 'times':clock, 'data':array(data, dtype=float32),
-                                                        'device':device_name,'connection':connection[1], 'downsample':True})
+                                                        'device':device_name,'connection':connection[1], 'stop_time':stop_time})
         input_chans = {}
         for i, acquisition in enumerate(acquisitions):
             chan = acquisition['connection']
@@ -206,7 +228,7 @@ class FileAndDataOps(object):
                 gate.append(0)
             self.to_plot[device_name+' AI'].append({'name':name, 'times':array(times, dtype=float32), 
                                                     'data':array(gate, dtype=float32),'device':device_name,
-                                                    'connection':chan,'labels':labels, 'downsample':False})
+                                                    'connection':chan,'labels':labels, 'stop_time':stop_time})
         
         if len(self.to_plot[device_name+' AO']) == 0:
             del self.to_plot[device_name+' AO']
@@ -218,13 +240,11 @@ class FileAndDataOps(object):
     def plot_ni_pcie_6363(self, device_name):
         self.plot_ni_card(device_name,32)
     
-    def plot_ni_pcie_6733(self, device_name):
+    def plot_ni_pci_6733(self, device_name):
         self.plot_ni_card(device_name, 0)
                            
     def plot_pulseblaster(self,device_name):
-        pb_inst_by_name = {'CONTINUE':0,'STOP': 1, 'LOOP': 2, 'END_LOOP': 3,'BRANCH': 6, 'WAIT': 8}
-        pb_inst_by_number = dict((v,k) for k,v in pb_inst_by_name.iteritems())
-        clock = array(self.get_clock(device_name))
+        stop_time, clock = self.get_clock(device_name)
         device_group = self.hdf5_file['devices'][device_name]
         pulse_program = device_group['PULSE_PROGRAM']
         clock_indices = device_group['CLOCK_INDICES']
@@ -239,7 +259,7 @@ class FileAndDataOps(object):
                 name = self.name_lookup[connection]
                 data = flags[:,i]
                 self.to_plot[device_name+' flags'].append({'name':name, 'times':clock, 'data':array(data, dtype=float32),
-                                                           'device':device_name,'connection':connection[1],'downsample':True})
+                                                           'device':device_name,'connection':connection[1], 'stop_time':stop_time})
         self.to_plot[device_name+' DDS'] = []
         for i in range(2):
             connection = (device_name, 'dds %d'%i)
@@ -256,19 +276,19 @@ class FileAndDataOps(object):
                 phases = array(phasetable)[phaseregs]
                 self.to_plot[device_name+' DDS'].append({'name':name + ' (freq)', 'times':clock,
                                                          'data':array(freqs, dtype=float32),'device':device_name,
-                                                         'connection':connection[1],'downsample':True})
+                                                         'connection':connection[1], 'stop_time':stop_time})
                 self.to_plot[device_name+' DDS'].append({'name':name + ' (amp)', 'times':clock,
                                                          'data':array(amps, dtype=float32),'device':device_name,
-                                                         'connection':connection[1],'downsample':True})
+                                                         'connection':connection[1], 'stop_time':stop_time})
                 self.to_plot[device_name+' DDS'].append({'name':name + ' (phase)', 'times':clock,
                                                          'data':array(phases, dtype=float32),'device':device_name,
-                                                         'connection':connection[1],'downsample':True})
+                                                         'connection':connection[1], 'stop_time':stop_time})
             if len(self.to_plot[device_name+' DDS']) == 0:
                 del self.to_plot[device_name+' DDS']
                 
                 
     def plot_novatechdds9m(self, device_name):
-        clock = array(self.get_clock(device_name))
+        stop_time, clock = self.get_clock(device_name)
         device_group = self.hdf5_file['devices'][device_name]
         table_data = device_group['TABLE_DATA']
         self.to_plot[device_name] = []
@@ -280,11 +300,11 @@ class FileAndDataOps(object):
                 amps = table_data['amp%d'%i][1:-2]
                 phases = table_data['phase%d'%i][1:-2]
                 self.to_plot[device_name].append({'name':name + ' (freq)', 'times':clock,'data':array(freqs, dtype=float32),
-                                                  'device':device_name,'connection':connection[1],'downsample':True})
+                                                  'device':device_name,'connection':connection[1], 'stop_time':stop_time})
                 self.to_plot[device_name].append({'name':name + ' (amp)', 'times':clock,'data':array(amps, dtype=float32),
-                                                  'device':device_name,'connection':connection[1],'downsample':True})
+                                                  'device':device_name,'connection':connection[1], 'stop_time':stop_time})
                 self.to_plot[device_name].append({'name':name + ' (phase)', 'times':clock, 'data':array(phases, dtype=float32),
-                                                  'device':device_name,'connection':connection[1],'downsample':True})
+                                                  'device':device_name,'connection':connection[1], 'stop_time':stop_time})
             if len(self.to_plot[device_name]) == 0:
                 del self.to_plot[device_name]
                 
@@ -389,14 +409,13 @@ class MainWindow(QtGui.QMainWindow):
         scrollArea.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
 
 
-        scrollAreaWidgetContents = QtGui.QWidget(scrollArea)
-
-
+        scrollAreaWidgetContents = QtGui.QWidget(self)
+        
         scrollArea.setWidget(scrollAreaWidgetContents)
         scrollarea_layout = QtGui.QVBoxLayout(scrollAreaWidgetContents)
         scrollarea_layout.setContentsMargins(0, 0, 0, 0)
         scrollarea_layout.setSpacing(0)
-        
+
         tab_layout.addWidget(scrollArea)
         self.tab_widget.addTab(tab,text)
         
@@ -421,6 +440,7 @@ class MainWindow(QtGui.QMainWindow):
                     pw = pg.PlotWidget(name='Plot%d'%i,labels={'left':line['name'],'right':line['connection']})
                     pw.plotItem.setXLink('Plot0')
                 pw.plotItem.showScale('right')
+                #pw.plotItem.showScale('bottom',False)
                 layout.addWidget(pw)
                 if 'labels' in line:
                     for x in line['labels']:
@@ -436,13 +456,10 @@ class MainWindow(QtGui.QMainWindow):
                 x = line['times']
                 y = line['data']
                 assert len(x) == len(y)
-                if line['downsample']:
-                    xnew, ynew = data_ops.resample(x,y, x[0], x[-1])
-                else:
-                    xnew, ynew = x,y
+                xnew, ynew = data_ops.resample(x, y, x[0], line['stop_time'], line['stop_time'])
                 plot = pw.plot(y=ynew,x=xnew)
                 pw.plotItem.setManualXScale()
-                pw.plotItem.setXRange(x[0], x[-1],padding=0)
+                pw.plotItem.setXRange(x[0], line['stop_time'], padding=0)
                 pw.plotItem.setManualYScale()
                 ymin = min(ynew)
                 ymax = max(ynew)
@@ -467,7 +484,7 @@ class MainWindow(QtGui.QMainWindow):
         for line in data_ops.to_plot[outputclass]:
             pw = self.plots_by_name[line['name']]
             x = line['times']
-            pw.plotItem.setXRange(x[0], x[-1],padding=0)
+            pw.plotItem.setXRange(x[0], line['stop_time'],padding=0)
             
     def update_resampling(self):
         if not self.resampling_required:
@@ -475,8 +492,6 @@ class MainWindow(QtGui.QMainWindow):
         self.resampling_required = False
         outputclass = self.tab_names_by_index[self.current_tab_index]
         for line in data_ops.to_plot[outputclass]:
-            if not line['downsample']:
-                continue
             pw = self.plots_by_name[line['name']]
             rect = pw.plotItem.vb.viewRect()
             xmin, xmax = rect.left(), rect.width() + rect.left()
@@ -486,7 +501,7 @@ class MainWindow(QtGui.QMainWindow):
             # doesn't immediately go off the edge of the data, and the
             # next resampling might have time to fill in more data before
             # the user sees any empty space.
-            xnew, ynew = data_ops.resample(line['times'],line['data'], xmin-0.2*dx, xmax+0.2*dx)
+            xnew, ynew = data_ops.resample(line['times'],line['data'], xmin-0.2*dx, xmax+0.2*dx, line['stop_time'])
             curve.updateData(ynew, x=xnew)
                 
     def on_tab_changed(self, tabindex):
