@@ -155,7 +155,7 @@ class FileAndDataOps(object):
         clock_array = self.hdf5_file['devices'][clocking_device][clock_type]
         return clock_array
         
-    def plot_ni_pcie_6363(self, device_name):
+    def plot_ni_card(self, device_name, n_digitals):
         clock = array(self.get_clock(device_name))
         device_group = self.hdf5_file['devices'][device_name]
         analog_outs = device_group['ANALOG_OUTS']
@@ -171,7 +171,7 @@ class FileAndDataOps(object):
             name = self.name_lookup[device_name, chan]
             self.to_plot[device_name+' AO'].append({'name':name, 'times':clock, 'data':array(data, dtype=float32),
                                                     'device':device_name,'connection':chan,'downsample':True})
-        digital_bits = self.decompose_bitfield(digital_outs[:],32)
+        digital_bits = self.decompose_bitfield(digital_outs[:],n_digitals)
         for i in range(32):
             connection = (device_name,'port0/line%d'%i)
             if connection in self.name_lookup:
@@ -214,6 +214,12 @@ class FileAndDataOps(object):
             del self.to_plot[device_name+' DO']
         if len(self.to_plot[device_name+' AI']) == 0:
             del self.to_plot[device_name+' AI']
+            
+    def plot_ni_pcie_6363(self, device_name):
+        self.plot_ni_card(device_name,32)
+    
+    def plot_ni_pcie_6733(self, device_name):
+        self.plot_ni_card(device_name, 0)
                            
     def plot_pulseblaster(self,device_name):
         pb_inst_by_name = {'CONTINUE':0,'STOP': 1, 'LOOP': 2, 'END_LOOP': 3,'BRANCH': 6, 'WAIT': 8}
