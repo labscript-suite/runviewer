@@ -264,6 +264,7 @@ class FileAndDataOps(object):
         for i in range(2):
             connection = (device_name, 'dds %d'%i)
             if connection in self.name_lookup:
+                print 'success!'
                 name = self.name_lookup[connection]
                 freqtable = device_group['DDS%d'%i]['FREQ_REGS']
                 amptable = device_group['DDS%d'%i]['AMP_REGS']
@@ -283,8 +284,8 @@ class FileAndDataOps(object):
                 self.to_plot[device_name+' DDS'].append({'name':name + ' (phase)', 'times':clock,
                                                          'data':array(phases, dtype=float32),'device':device_name,
                                                          'connection':connection[1], 'stop_time':stop_time})
-            if len(self.to_plot[device_name+' DDS']) == 0:
-                del self.to_plot[device_name+' DDS']
+        if len(self.to_plot[device_name+' DDS']) == 0:
+            del self.to_plot[device_name+' DDS']
                 
                 
     def plot_novatechdds9m(self, device_name):
