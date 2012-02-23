@@ -150,9 +150,9 @@ class FileAndDataOps(object):
         # For looking up the parent of a device if you know its name:
         parent_dict = [(line['name'],line['parent']) for line in connection_table]
         # For looking up the connection of a device if you know its name:
-        connection_dict = [(line['name'],line['connected to']) for line in connection_table]
+        connection_dict = [(line['name'],line['parent port']) for line in connection_table]
         # For looking up the name of a device if you know its parent and connection:
-        name_dict = [((line['parent'],line['connected to']),line['name']) for line in connection_table]
+        name_dict = [((line['parent'],line['parent port']),line['name']) for line in connection_table]
         parent_dict = dict(parent_dict)
         connection_dict = dict(connection_dict)
         name_dict = dict(name_dict)
@@ -180,9 +180,18 @@ class FileAndDataOps(object):
     def plot_ni_card(self, device_name, n_digitals):
         stop_time, clock = self.get_clock(device_name)
         device_group = self.hdf5_file['devices'][device_name]
-        analog_outs = device_group['ANALOG_OUTS']
-        digital_outs = device_group['DIGITAL_OUTS']
-        acquisitions = device_group['ACQUISITIONS']
+        try:
+            analog_outs = device_group['ANALOG_OUTS']
+        except:
+            analog_outs = None
+        try:
+            digital_outs = device_group['DIGITAL_OUTS']
+        except:
+            digital_outs = None
+        try:
+            acquisitions = device_group['ACQUISITIONS']
+        except:
+            acquisitions = None
         analog_channels = device_group.attrs['analog_out_channels']
         analog_channels = [channel.split('/')[1] for channel in analog_channels.split(',')]
         self.to_plot[device_name+' AO'] = []
@@ -193,39 +202,41 @@ class FileAndDataOps(object):
             name = self.name_lookup[device_name, chan]
             self.to_plot[device_name+' AO'].append({'name':name, 'times':clock, 'data':array(data, dtype=float32),
                                                     'device':device_name,'connection':chan,'stop_time':stop_time})
-        digital_bits = self.decompose_bitfield(digital_outs[:],n_digitals)
-        for i in range(32):
-            connection = (device_name,'port0/line%d'%i)
-            if connection in self.name_lookup:
-                data = digital_bits[:,i]
-                name = self.name_lookup[connection]
-                self.to_plot[device_name+' DO'].append({'name':name, 'times':clock, 'data':array(data, dtype=float32),
-                                                        'device':device_name,'connection':connection[1], 'stop_time':stop_time})
-        input_chans = {}
-        for i, acquisition in enumerate(acquisitions):
-            chan = acquisition['connection']
-            if chan not in input_chans:
-                input_chans[chan] = []
-            input_chans[chan].append(acquisition)
-        for chan in input_chans:
-            name = self.name_lookup[device_name, chan]
-            times = []
-            gate = []
-            labels = {} # For putting text on the plot at specified x points
-            for acquisition in input_chans[chan]:
-                start = acquisition['start']
-                stop = acquisition['stop']
-                labels[start] = acquisition['label']
-                # A square pulse:
-                times.extend(2*[start])
-                times.extend(2*[stop])
-                gate.extend([0,1,1,0])
-            if not 0 in times:
-                times.insert(0,0)
-                gate.insert(0,0)
-            if not clock[-1] in times:
-                times.append(clock[-1])
-                gate.append(0)
+        if digital_outs is not None:
+            digital_bits = self.decompose_bitfield(digital_outs[:],n_digitals)
+            for i in range(32):
+                connection = (device_name,'port0/line%d'%i)
+                if connection in self.name_lookup:
+                    data = digital_bits[:,i]
+                    name = self.name_lookup[connection]
+                    self.to_plot[device_name+' DO'].append({'name':name, 'times':clock, 'data':array(data, dtype=float32),
+                                                            'device':device_name,'connection':connection[1], 'stop_time':stop_time})
+        if acquisitions is not None:
+            input_chans = {}
+            for i, acquisition in enumerate(acquisitions):
+                chan = acquisition['connection']
+                if chan not in input_chans:
+                    input_chans[chan] = []
+                input_chans[chan].append(acquisition)
+            for chan in input_chans:
+                name = self.name_lookup[device_name, chan]
+                times = []
+                gate = []
+                labels = {} # For putting text on the plot at specified x points
+                for acquisition in input_chans[chan]:
+                    start = acquisition['start']
+                    stop = acquisition['stop']
+                    labels[start] = acquisition['label']
+                    # A square pulse:
+                    times.extend(2*[start])
+                    times.extend(2*[stop])
+                    gate.extend([0,1,1,0])
+                if not 0 in times:
+                    times.insert(0,0)
+                    gate.insert(0,0)
+                if not clock[-1] in times:
+                    times.append(clock[-1])
+                    gate.append(0)
             self.to_plot[device_name+' AI'].append({'name':name, 'times':array(times, dtype=float32), 
                                                     'data':array(gate, dtype=float32),'device':device_name,
                                                     'connection':chan,'labels':labels, 'stop_time':stop_time})
@@ -291,23 +302,47 @@ class FileAndDataOps(object):
     def plot_novatechdds9m(self, device_name):
         stop_time, clock = self.get_clock(device_name)
         device_group = self.hdf5_file['devices'][device_name]
-        table_data = device_group['TABLE_DATA']
+        try:
+            table_data = device_group['TABLE_DATA']
+        except:
+            table_data = None
+        try:
+            static_data = device_group['STATIC_DATA']
+        except:
+            static_data = None
         self.to_plot[device_name] = []
-        for i in range(2):
-            connection = (device_name, 'channel %d'%i)
-            if connection in self.name_lookup:
-                name = self.name_lookup[connection]
-                freqs = table_data['freq%d'%i][1:-2]
-                amps = table_data['amp%d'%i][1:-2]
-                phases = table_data['phase%d'%i][1:-2]
-                self.to_plot[device_name].append({'name':name + ' (freq)', 'times':clock,'data':array(freqs, dtype=float32),
-                                                  'device':device_name,'connection':connection[1], 'stop_time':stop_time})
-                self.to_plot[device_name].append({'name':name + ' (amp)', 'times':clock,'data':array(amps, dtype=float32),
-                                                  'device':device_name,'connection':connection[1], 'stop_time':stop_time})
-                self.to_plot[device_name].append({'name':name + ' (phase)', 'times':clock, 'data':array(phases, dtype=float32),
-                                                  'device':device_name,'connection':connection[1], 'stop_time':stop_time})
-            if len(self.to_plot[device_name]) == 0:
-                del self.to_plot[device_name]
+        if table_data is not None:
+            for i in range(2):
+                connection = (device_name, 'channel %d'%i)
+                if connection in self.name_lookup:
+                    name = self.name_lookup[connection]
+                    freqs = table_data['freq%d'%i]
+                    amps = table_data['amp%d'%i]
+                    phases = table_data['phase%d'%i]
+                    self.to_plot[device_name].append({'name':name + ' (freq)', 'times':clock,'data':array(freqs, dtype=float32),
+                                                      'device':device_name,'connection':connection[1], 'stop_time':stop_time})
+                    self.to_plot[device_name].append({'name':name + ' (amp)', 'times':clock,'data':array(amps, dtype=float32),
+                                                      'device':device_name,'connection':connection[1], 'stop_time':stop_time})
+                    self.to_plot[device_name].append({'name':name + ' (phase)', 'times':clock, 'data':array(phases, dtype=float32),
+                                                      'device':device_name,'connection':connection[1], 'stop_time':stop_time})
+        if static_data is not None:
+            for i in [2,3]:
+                connection = (device_name, 'channel %d'%i)
+                if connection in self.name_lookup:
+                    name = self.name_lookup[connection]
+                    freqs = zeros(len(clock)) + static_data['freq%d'%i][0]
+                    amps = zeros(len(clock)) + static_data['amp%d'%i][0]
+                    phases = zeros(len(clock)) + static_data['phase%d'%i][0]
+                    self.to_plot[device_name].append({'name':name + ' (freq)', 'times':clock,'data':array(freqs, dtype=float32),
+                                                      'device':device_name,'connection':connection[1], 'stop_time':stop_time})
+                    self.to_plot[device_name].append({'name':name + ' (amp)', 'times':clock,'data':array(amps, dtype=float32),
+                                                      'device':device_name,'connection':connection[1], 'stop_time':stop_time})
+                    self.to_plot[device_name].append({'name':name + ' (phase)', 'times':clock, 'data':array(phases, dtype=float32),
+                                                      'device':device_name,'connection':connection[1], 'stop_time':stop_time})
+        
+        if len(self.to_plot[device_name]) == 0:
+            del self.to_plot[device_name]
+        
                 
         
 class MainWindow(QtGui.QMainWindow):
@@ -456,7 +491,7 @@ class MainWindow(QtGui.QMainWindow):
                         
                 x = line['times']
                 y = line['data']
-                assert len(x) == len(y)
+                assert len(x) == len(y), '%d %d %s'%(len(x), len(y), outputclass)
                 xnew, ynew = data_ops.resample(x, y, x[0], line['stop_time'], line['stop_time'])
                 plot = pw.plot(y=ynew,x=xnew)
                 pw.plotItem.setManualXScale()
