@@ -192,16 +192,19 @@ class FileAndDataOps(object):
             acquisitions = device_group['ACQUISITIONS']
         except:
             acquisitions = None
-        analog_channels = device_group.attrs['analog_out_channels']
-        analog_channels = [channel.split('/')[1] for channel in analog_channels.split(',')]
+        if analog_outs is not None:
+            analog_channels = device_group.attrs['analog_out_channels']
+            analog_channels = [channel.split('/')[1] for channel in analog_channels.split(',')]
+       
         self.to_plot[device_name+' AO'] = []
         self.to_plot[device_name+' AI'] = []
         self.to_plot[device_name+' DO'] = []
-        for i, chan in enumerate(analog_channels):
-            data = analog_outs[:,i]
-            name = self.name_lookup[device_name, chan]
-            self.to_plot[device_name+' AO'].append({'name':name, 'times':clock, 'data':array(data, dtype=float32),
-                                                    'device':device_name,'connection':chan,'stop_time':stop_time})
+        if analog_outs is not None:
+            for i, chan in enumerate(analog_channels):
+                data = analog_outs[:,i]
+                name = self.name_lookup[device_name, chan]
+                self.to_plot[device_name+' AO'].append({'name':name, 'times':clock, 'data':array(data, dtype=float32),
+                                                        'device':device_name,'connection':chan,'stop_time':stop_time})
         if digital_outs is not None:
             digital_bits = self.decompose_bitfield(digital_outs[:],n_digitals)
             for i in range(32):
