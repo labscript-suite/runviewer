@@ -175,7 +175,7 @@ class FileAndDataOps(object):
         clock_type = {'fast clock':'FAST_CLOCK','slow clock':'SLOW_CLOCK'}[clock_type]
         clock_array = self.hdf5_file['devices'][clocking_device][clock_type]
         stop_time = self.hdf5_file['devices'][clocking_device].attrs['stop_time']
-        return stop_time, array(clock_array)
+        return stop_time, array(clock_array,dtype=float32)
         
     def plot_ni_card(self, device_name, n_digitals):
         stop_time, clock = self.get_clock(device_name)
