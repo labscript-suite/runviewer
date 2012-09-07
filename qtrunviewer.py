@@ -16,24 +16,25 @@ if not sys.stdout.isatty():
 class FileAndDataOps(object):
 
     def __init__(self):
-        self.plotting_functions = {'ni_pcie_6363':self.plot_ni_pcie_6363,
-                                   'ni_pci_6733':self.plot_ni_pci_6733,
-                                  'novatechdds9m':self.plot_novatechdds9m,
-                                  'pulseblaster':self.plot_pulseblaster} 
-
+        self.plotting_functions = {'NI_PCIe_6363':self.plot_ni_pcie_6363,
+                                   'NI_PCI_6733':self.plot_ni_pci_6733,
+                                   'NovaTechDDS9M':self.plot_novatechdds9m,
+                                   'PulseBlaster':self.plot_pulseblaster,
+                                   'RFBlaster':self.plot_rfblaster}
+                                   
     def get_data(self, h5_filename=None):
         self.hdf5_file = self.open_hdf5_file(h5_filename)
         if not self.hdf5_file:
             return {}
-        self.parent_lookup, self.connection_lookup, self.name_lookup = self.parse_connection_table()
+        self.parent_lookup, self.connection_lookup, self.name_lookup, self.class_lookup = self.parse_connection_table()
         globals_and_info = self.get_globals_and_info(self.hdf5_file)
         self.to_plot = {}
         for device_name in self.hdf5_file['/devices']:
-            device_prefix = '_'.join(device_name.split('_')[:-1])
-            if not device_prefix in self.plotting_functions:
-                print 'device %s not supported yet'%device_prefix
+            device_class = self.class_lookup[device_name]
+            if not device_class in self.plotting_functions:
+                print 'device %s not supported yet'%device_class
                 continue
-            self.plotting_functions[device_prefix](device_name)
+            self.plotting_functions[device_class](device_name)
         return self.to_plot, globals_and_info
     
     def get_globals_and_info(self,hdf5_file):
@@ -153,10 +154,13 @@ class FileAndDataOps(object):
         connection_dict = [(line['name'],line['parent port']) for line in connection_table]
         # For looking up the name of a device if you know its parent and connection:
         name_dict = [((line['parent'],line['parent port']),line['name']) for line in connection_table]
+        # For looking up the type of a device if you know its name:
+        class_dict = [(line['name'],line['class']) for line in connection_table]
         parent_dict = dict(parent_dict)
         connection_dict = dict(connection_dict)
         name_dict = dict(name_dict)
-        return parent_dict, connection_dict, name_dict
+        class_dict = dict(class_dict)
+        return parent_dict, connection_dict, name_dict, class_dict
             
     def get_clock(self,device_name):
         ancestry = [device_name]
@@ -346,8 +350,26 @@ class FileAndDataOps(object):
         if len(self.to_plot[device_name]) == 0:
             del self.to_plot[device_name]
         
-                
-        
+    def plot_rfblaster(self, device_name):
+        device_group = self.hdf5_file['devices'][device_name]
+        table_data = device_group['TABLE_DATA']
+        clock = array(table_data['time'],dtype=float32)
+        stop_time = clock[-1]
+        self.to_plot[device_name] = []
+        for i in range(2):
+            connection = (device_name, 'channel %d'%i)
+            if connection in self.name_lookup:
+                name = self.name_lookup[connection]
+                freqs = table_data['freq%d'%i]
+                amps = table_data['amp%d'%i]
+                phases = table_data['phase%d'%i]
+                self.to_plot[device_name].append({'name':name + ' (freq)', 'times':clock,'data':array(freqs, dtype=float32),
+                                                  'device':device_name,'connection':connection[1], 'stop_time':stop_time})
+                self.to_plot[device_name].append({'name':name + ' (amp)', 'times':clock,'data':array(amps, dtype=float32),
+                                                  'device':device_name,'connection':connection[1], 'stop_time':stop_time})
+                self.to_plot[device_name].append({'name':name + ' (phase)', 'times':clock, 'data':array(phases, dtype=float32),
+                                                  'device':device_name,'connection':connection[1], 'stop_time':stop_time})
+
 class MainWindow(QtGui.QMainWindow):
     def __init__(self, data_ops, startfolder, startfile):
         QtGui.QWidget.__init__(self)
