@@ -1,5 +1,5 @@
 import os,sys
-import h5py
+import h5_lock, h5py
 
 from PyQt4 import QtGui, QtCore
 import pyqtgraph as pg
