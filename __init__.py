@@ -76,7 +76,6 @@ class Shot(object):
             device_name = parent_device_name
         
 
-shot = Shot('/home/bilbo/20121023T000422_crossed_beam_bec_09.h5')
 
 
 
