@@ -9,26 +9,26 @@ resample(PyObject *dummy, PyObject *args)
     // Parse the input arguments:
     PyObject *arg1=NULL, *arg2=NULL, *arg3=NULL, *out=NULL;
     PyObject *x_in=NULL, *y_in=NULL, *x_out=NULL, *y_out=NULL; 
-    float stop_time;
+    double stop_time;
     
     if (!PyArg_ParseTuple(args, "OOOO!f", &arg1, &arg2, &arg3,
         &PyArray_Type, &out, &stop_time)) return NULL;
 
     // Convert the input objects to np arrays:
-    x_in = PyArray_FROM_OTF(arg1, NPY_FLOAT, NPY_IN_ARRAY);
+    x_in = PyArray_FROM_OTF(arg1, NPY_DOUBLE, NPY_IN_ARRAY);
     if (x_in == NULL) return NULL;
-    y_in = PyArray_FROM_OTF(arg2, NPY_FLOAT, NPY_IN_ARRAY);
+    y_in = PyArray_FROM_OTF(arg2, NPY_DOUBLE, NPY_IN_ARRAY);
     if (y_in == NULL) goto fail;
-    x_out = PyArray_FROM_OTF(arg3, NPY_FLOAT, NPY_IN_ARRAY);
+    x_out = PyArray_FROM_OTF(arg3, NPY_DOUBLE, NPY_IN_ARRAY);
     if (x_out == NULL) goto fail;
-    y_out = PyArray_FROM_OTF(out, NPY_FLOAT, NPY_INOUT_ARRAY);
+    y_out = PyArray_FROM_OTF(out, NPY_DOUBLE, NPY_INOUT_ARRAY);
     if (y_out == NULL) goto fail;
     
     // The data contained in the np arrays:
-    float * x_in_data;
-    float * x_out_data;
-    float * y_in_data;
-    float * y_out_data;
+    double * x_in_data;
+    double * x_out_data;
+    double * y_in_data;
+    double * y_out_data;
     
     x_in_data = PyArray_DATA(x_in);
     x_out_data = PyArray_DATA(x_out);

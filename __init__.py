@@ -1,3 +1,4 @@
+import numpy
 from numpy import array
 
 import h5_lock, h5py
@@ -18,8 +19,11 @@ def resample(data_x, data_y, xmin, xmax, npts=2000, stop_time=None):
         of interpolation."""
         if stop_time is None:
             stop_time = xmax
-        x_out = linspace(xmin, xmax, npts)
-        y_out = empty(len(x_out))
+        x_out = numpy.linspace(xmin, xmax, npts)
+        y_out = numpy.empty(len(x_out))
+        # convert to 64 bit floats:
+        data_x = array(data_x,dtype=float)
+        data_y = array(data_y, dtype=float)
         _resample(data_x, data_y, x_out, y_out,float(stop_time))
         return x_out, y_out
                
