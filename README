@@ -1,1 +1,6 @@
-To compile the C extension and produce the 'resample' module, run 'python setup.py build'.
+To compile the C extension and produce the 'resample' module, run:
+
+python setup.py build --inplace --compiler=mingw32
+
+This is if on Windows and using python(X,Y) distribution (which includes the mingw32 compiler).
+If on linux just leave off the --compiler argument.
