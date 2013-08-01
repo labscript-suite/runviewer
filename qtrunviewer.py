@@ -1,5 +1,6 @@
 import os,sys
-import h5py
+import zlock, h5_lock, h5py
+zlock.set_client_process_name('runviewer')
 
 from PyQt4 import QtGui, QtCore
 import pyqtgraph as pg
