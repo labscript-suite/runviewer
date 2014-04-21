@@ -51,6 +51,21 @@ class RunViewer(object):
         self.ui.channel_treeview.setModel(self.channel_model)
         self.channel_model.itemChanged.connect(self.update_plots)
         
+        # create a hidden plot widget that all plots can link their x-axis too
+        hidden_plot = pg.PlotWidget(name='runviewer - time axis link')
+        
+        hidden_plot.setMinimumHeight(40)
+        hidden_plot.setMaximumHeight(40)
+        hidden_plot.setLabel('bottom', 'Time', units='s')
+        hidden_plot.showAxis('right', True)
+        hidden_plot_item = hidden_plot.plot([0,1],[0,0])
+        self._hidden_plot = (hidden_plot, hidden_plot_item)
+        self.ui.plot_layout.addWidget(hidden_plot)
+        
+        # connect signals
+        self.ui.reset_x_axis.clicked.connect(self.on_x_axis_reset)
+        self.ui.reset_y_axis.clicked.connect(self.on_y_axes_reset)
+        
         self.ui.show()
         
         # internal variables
@@ -102,7 +117,7 @@ class RunViewer(object):
         treeview_channels_dict = {}
         deactivated_treeview_channels_dict = {}
         for i in range(self.channel_model.rowCount()):
-            item = self.channel_model.item(i,CHANNEL_MODEL__CHANNEL_INDEX)
+            item = self.channel_model.item(i,CHANNEL_MODEL__CHECKBOX_INDEX)
             # Sanity check
             if item.text() in treeview_channels_dict:
                 raise RuntimeError("A duplicate channel name was detected in the treeview due to an internal error. Please lodge a bugreport detailing how the channels with the same name appeared in the channel treeview. Please restart the application")
@@ -150,6 +165,25 @@ class RunViewer(object):
         # get list of selected shots
         ticked_shots = self.get_selected_shots()
         
+        # SHould we rescale the x-axis?
+        # if self._hidden_plot[0].getViewBox.getState()['autoRange'][0]:
+            # self._hidden_plot[0].enableAutoRange(axis=pg.ViewBox.XAxis)
+        # else:
+            # self._hidden_plot[0].enableAutoRange(axis=pg.ViewBox.XAxis, enable=False)
+            
+        # find stop time of longest ticked shot
+        largest_stop_time = 0
+        stop_time_set = False
+        for shot in ticked_shots:
+            if shot.stop_time > largest_stop_time:
+                largest_stop_time = shot.stop_time
+                stop_time_set = True
+        if not stop_time_set:
+            largest_stop_time = 1.0
+        
+        #Update the range of the link plot
+        self._hidden_plot[1].setData([0,largest_stop_time],[0,1e-9])
+        
         # Update plots
         for i in range(self.channel_model.rowCount()):
             check_item = self.channel_model.item(i,CHANNEL_MODEL__CHECKBOX_INDEX)
@@ -183,6 +217,7 @@ class RunViewer(object):
                     self.plot_widgets[channel].setLabel('left', channel, units='V')
                     self.plot_widgets[channel].setLabel('bottom', 'Time', units='s')
                     self.plot_widgets[channel].showAxis('right', True)
+                    self.plot_widgets[channel].setXLink('runviewer - time axis link')         
                     self.ui.plot_layout.addWidget(self.plot_widgets[channel])
                     
                     for shot in ticked_shots:
@@ -195,11 +230,13 @@ class RunViewer(object):
                 if channel in self.plot_widgets:
                     self.plot_widgets[channel].hide()
                 
-                
-                
-                
-            
+    def on_x_axis_reset(self):
+        self._hidden_plot[0].enableAutoRange(axis=pg.ViewBox.XAxis)   
         
+    def on_y_axes_reset(self):
+        for plot_widget in self.plot_widgets.values():
+            plot_widget.enableAutoRange(axis=pg.ViewBox.YAxis)
+           
     def temp_load_shots(self):
         for i in range(10):
             shot = TempShot(i)
@@ -217,13 +254,15 @@ class TempShot(Shot):
     def __init__(self, i):
         Shot.__init__(self, 'shot %d'%i)
         self._channels = ['Bx', 'By', 'Bz', 'Bq']
+        
+        self.stop_time = i+1
     
         self.traces = {}
         no_x_points = 10000
         for channel in self.channels:
             # self.traces[channel] = (numpy.linspace(0,10,no_x_points), numpy.random.rand(no_x_points))
-            x_points = numpy.linspace(0,10,no_x_points)
-            self.traces[channel] = (x_points, numpy.sin(x_points*numpy.pi+i/11.0*2*numpy.pi))
+            x_points = numpy.linspace(0,self.stop_time,no_x_points)
+            self.traces[channel] = (x_points, (i+1)*numpy.sin(x_points*numpy.pi+i/11.0*2*numpy.pi))
             
             
     @property
