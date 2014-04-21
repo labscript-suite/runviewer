@@ -30,20 +30,69 @@ pg.setConfigOption('foreground', 'k')
 import labscript_utils.excepthook
 from qtutils import *
 
-SHOT_MODEL__CHECKBOX_INDEX = 0
+SHOT_MODEL__COLOUR_INDEX = 0
+SHOT_MODEL__CHECKBOX_INDEX = 1
 SHOT_MODEL__PATH_INDEX = 1
 CHANNEL_MODEL__CHECKBOX_INDEX = 0
-CHANNEL_MODEL__CHANNEL_INDEX = 1
+CHANNEL_MODEL__CHANNEL_INDEX = 0
 
+class ColourDelegate(QItemDelegate):
+
+    def __init__(self, view, *args, **kwargs):
+        QItemDelegate.__init__(self, *args, **kwargs)
+        self._view = view
+        self._colours = [Qt.black, Qt.red,  Qt.green, Qt.blue, Qt.cyan, Qt.magenta, Qt.yellow, Qt.gray, Qt.darkRed, Qt.darkGreen, Qt.darkBlue, Qt.darkCyan, Qt.darkMagenta, Qt.darkYellow, Qt.darkGray, Qt.lightGray]
+
+        self._current_colour_index = 0
+        
+    def get_next_colour(self):
+        colour = self._colours[self._current_colour_index]
+        self._current_colour_index +=1
+        if self._current_colour_index >= len(self._colours):
+            self._current_colour_index = 0
+        return colour
+        
+    def createEditor(self, parent, option, index):
+        editor = QComboBox(parent)
+        #colours = QColor.colorNames()
+        for colour in self._colours:
+            pixmap = QPixmap(20,20)
+            pixmap.fill(colour)
+            editor.addItem(QIcon(pixmap),'', colour)
+        
+        editor.activated.connect(lambda index, editor=editor: self._view.commitData(editor))
+        editor.activated.connect(lambda index, editor=editor: self._view.closeEditor(editor,QAbstractItemDelegate.NoHint))
+        QTimer.singleShot(10,editor.showPopup)
+        
+        return editor
+    
+    def setEditorData(self, editor, index):
+        value = index.model().data(index, Qt.UserRole)
+        for i in range(editor.count()):
+            if editor.itemData(i) == value():
+                editor.setCurrentIndex(i)
+                break
+            
+    def setModelData(self, editor, model, index):
+        model.setData(index, editor.itemIcon(editor.currentIndex()), Qt.DecorationRole)
+        colour = editor.itemData(editor.currentIndex())
+        model.setData(index, lambda colour=colour:colour, Qt.UserRole)
+        
+    def updateEditorGeometry(self, editor, option, index):
+        editor.setGeometry(option.rect);
+
+        
 class RunViewer(object):
     def __init__(self):
         self.ui = QUiLoader().load(os.path.join(os.path.dirname(os.path.realpath(__file__)),'main.ui'))
         
         #setup shot treeview model
         self.shot_model = QStandardItemModel()
-        self.shot_model.setHorizontalHeaderLabels(['','path'])
+        self.shot_model.setHorizontalHeaderLabels(['colour','path'])
         self.ui.shot_treeview.setModel(self.shot_model)
         self.shot_model.itemChanged.connect(self.on_shot_selection_changed)
+        self.shot_colour_delegate = ColourDelegate(self.ui.shot_treeview)
+        self.ui.shot_treeview.setItemDelegateForColumn(0, self.shot_colour_delegate)
         
         #setup channel treeview model
         self.channel_model = QStandardItemModel()
@@ -76,39 +125,75 @@ class RunViewer(object):
         self.temp_load_shots()
     
     def on_shot_selection_changed(self, item):
-        self.update_channels_treeview()
+        if self.shot_model.indexFromItem(item).column() == SHOT_MODEL__CHECKBOX_INDEX:
     
+            # add or remove a colour for this shot
+            checked = item.checkState()
+            row = self.shot_model.indexFromItem(item).row()
+            colour_item = self.shot_model.item(row,SHOT_MODEL__COLOUR_INDEX)
+            
+            if checked:
+                colour = self.shot_colour_delegate.get_next_colour()
+                colour_item.setEditable(True)
+                pixmap = QPixmap(20,20)
+                pixmap.fill(colour)
+                icon = QIcon(pixmap)
+            else:
+                colour = None
+                icon = None
+                colour_item.setEditable(False)
+                
+            colour_item.setData(icon, Qt.DecorationRole)
+            colour_item.setData(lambda colour=colour:colour, Qt.UserRole)
+            
+            # model.setData(index, editor.itemIcon(editor.currentIndex()), 
+            # model.setData(index, editor.itemData(editor.currentIndex()), Qt.UserRole)
+        
+            self.update_channels_treeview()
+        else:
+            #update the plot colours
+            pass
+            
     def load_shot(self, shot):
         # add shot to shot list
         # Create Items
         items = []
-        check_item = QStandardItem()
+        colour_item = QStandardItem('')
+        colour_item.setEditable(False)
+        colour_item.setToolTip('Double-click to change colour')
+        items.append(colour_item)
+        
+        check_item = QStandardItem(shot.path)
+        check_item.setEditable(False)
         check_item.setCheckable(True)
         check_item.setCheckState(Qt.Unchecked) # options are Qt.Checked OR Qt.Unchecked        
         check_item.setData(shot)
         items.append(check_item)
         # script name
-        path_item = QStandardItem(shot.path)
-        path_item.setEditable(False)
-        items.append(path_item)
+        # path_item = QStandardItem(shot.path)
+        # path_item.setEditable(False)
+        # items.append(path_item)
         self.shot_model.appendRow(items)
         
-        self.update_channels_treeview()
-    def get_selected_shots(self):
+        # only do this if we are checking the shot we are adding
+        #self.update_channels_treeview()
+        
+    def get_selected_shots_and_colours(self):
         # get the ticked shots  
-        ticked_shots = []
+        ticked_shots = {}
         for i in range(self.shot_model.rowCount()):
             item = self.shot_model.item(i,SHOT_MODEL__CHECKBOX_INDEX)
+            colour_item = self.shot_model.item(i,SHOT_MODEL__COLOUR_INDEX)
             if item.checkState() == Qt.Checked:
-                ticked_shots.append(item.data())
+                ticked_shots[item.data()] = colour_item.data(Qt.UserRole)()
         return ticked_shots
     
     def update_channels_treeview(self):
-        ticked_shots = self.get_selected_shots()
+        ticked_shots = self.get_selected_shots_and_colours()
                 
         # get set of channels
         channels = {}
-        for shot in ticked_shots:
+        for shot in ticked_shots.keys():
             channels[shot] = set(shot.channels)
         channels_set = frozenset().union(*channels.values())
         
@@ -163,7 +248,7 @@ class RunViewer(object):
         
     def update_plots(self):
         # get list of selected shots
-        ticked_shots = self.get_selected_shots()
+        ticked_shots = self.get_selected_shots_and_colours()
         
         # SHould we rescale the x-axis?
         # if self._hidden_plot[0].getViewBox.getState()['autoRange'][0]:
@@ -174,7 +259,7 @@ class RunViewer(object):
         # find stop time of longest ticked shot
         largest_stop_time = 0
         stop_time_set = False
-        for shot in ticked_shots:
+        for shot in ticked_shots.keys():
             if shot.stop_time > largest_stop_time:
                 largest_stop_time = shot.stop_time
                 stop_time_set = True
@@ -197,16 +282,16 @@ class RunViewer(object):
                     # are there are plot items for this channel which are shown that should not be?
                     to_delete = []
                     for shot in self.plot_items[channel]:
-                        if shot not in ticked_shots:
+                        if shot not in ticked_shots.keys():
                             self.plot_widgets[channel].removeItem(self.plot_items[channel][shot])
                             to_delete.append(shot)
                     for shot in to_delete:
                         del self.plot_items[channel][shot]
                     
                     # do we need to add any plot items for shots that were not previously selected?
-                    for shot in ticked_shots:
+                    for shot, colour in ticked_shots.items():
                         if shot not in self.plot_items[channel]:
-                            plot_item = self.plot_widgets[channel].plot(*shot.traces[channel])
+                            plot_item = self.plot_widgets[channel].plot(shot.traces[channel][0], shot.traces[channel][1], pen=pg.mkPen(QColor(colour), width=2))
                             self.plot_items[channel][shot] = plot_item
                     
                 # If no, create one
@@ -220,9 +305,9 @@ class RunViewer(object):
                     self.plot_widgets[channel].setXLink('runviewer - time axis link')         
                     self.ui.plot_layout.addWidget(self.plot_widgets[channel])
                     
-                    for shot in ticked_shots:
+                    for shot, colour in ticked_shots.items():
                         if channel in shot.traces:
-                            plot_item = self.plot_widgets[channel].plot(*shot.traces[channel])
+                            plot_item = self.plot_widgets[channel].plot(shot.traces[channel][0], shot.traces[channel][1], pen=pg.mkPen(QColor(colour), width=2))
                             self.plot_items.setdefault(channel, {})
                             self.plot_items[channel][shot] = plot_item
                 
