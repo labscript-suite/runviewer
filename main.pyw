@@ -127,6 +127,11 @@ class RunViewer(object):
         # connect signals
         self.ui.reset_x_axis.clicked.connect(self.on_x_axis_reset)
         self.ui.reset_y_axis.clicked.connect(self.on_y_axes_reset)
+        self.ui.channel_move_up.clicked.connect(self._move_up)
+        self.ui.channel_move_down.clicked.connect(self._move_down)
+        self.ui.channel_move_to_top.clicked.connect(self._move_top)
+        self.ui.channel_move_to_bottom.clicked.connect(self._move_bottom)
+        
         
         self.ui.show()
         
@@ -349,7 +354,110 @@ class RunViewer(object):
         for i in range(10):
             shot = TempShot(i)
             self.load_shot(shot)
-            
+    
+    def _move_up(self):        
+        # Get the selection model from the treeview
+        selection_model = self.ui.channel_treeview.selectionModel()    
+        # Create a list of select row indices
+        selected_row_list = [index.row() for index in sorted(selection_model.selectedRows())]
+        # For each row selected
+        for i,row in enumerate(selected_row_list):
+            # only move the row if it is not element 0, and the row above it is not selected
+            # (note that while a row above may have been initially selected, it should by now, be one row higher
+            # since we start moving elements of the list upwards starting from the lowest index)
+            if row > 0 and (row-1) not in selected_row_list:
+                # Remove the selected row
+                items = self.channel_model.takeRow(row)
+                # Add the selected row into a position one above
+                self.channel_model.insertRow(row-1,items)
+                # Since it is now a newly inserted row, select it again
+                selection_model.select(self.channel_model.indexFromItem(items[0]),QItemSelectionModel.SelectCurrent)
+                # reupdate the list of selected indices to reflect this change
+                selected_row_list[i] -= 1
+        self.update_plot_positions()
+       
+    def _move_down(self):
+        # Get the selection model from the treeview
+        selection_model = self.ui.channel_treeview.selectionModel()    
+        # Create a list of select row indices
+        selected_row_list = [index.row() for index in reversed(sorted(selection_model.selectedRows()))]
+        # For each row selected
+        for i,row in enumerate(selected_row_list):
+            # only move the row if it is not the last element, and the row above it is not selected
+            # (note that while a row below may have been initially selected, it should by now, be one row lower
+            # since we start moving elements of the list upwards starting from the highest index)
+            if row < self.channel_model.rowCount()-1 and (row+1) not in selected_row_list:
+                # Remove the selected row
+                items = self.channel_model.takeRow(row)
+                # Add the selected row into a position one above
+                self.channel_model.insertRow(row+1,items)
+                # Since it is now a newly inserted row, select it again
+                selection_model.select(self.channel_model.indexFromItem(items[0]),QItemSelectionModel.SelectCurrent)
+                # reupdate the list of selected indices to reflect this change
+                selected_row_list[i] += 1
+        self.update_plot_positions()
+        
+    def _move_top(self):
+        # Get the selection model from the treeview
+        selection_model = self.ui.channel_treeview.selectionModel()    
+        # Create a list of select row indices
+        selected_row_list = [index.row() for index in sorted(selection_model.selectedRows())]
+        # For each row selected
+        for i,row in enumerate(selected_row_list):
+            # only move the row while it is not element 0, and the row above it is not selected
+            # (note that while a row above may have been initially selected, it should by now, be one row higher
+            # since we start moving elements of the list upwards starting from the lowest index)
+            while row > 0 and (row-1) not in selected_row_list:
+                # Remove the selected row
+                items = self.channel_model.takeRow(row)
+                # Add the selected row into a position one above
+                self.channel_model.insertRow(row-1,items)
+                # Since it is now a newly inserted row, select it again
+                selection_model.select(self.channel_model.indexFromItem(items[0]),QItemSelectionModel.SelectCurrent)
+                # reupdate the list of selected indices to reflect this change
+                selected_row_list[i] -= 1
+                row -= 1
+        self.update_plot_positions()
+              
+    def _move_bottom(self):
+        selection_model = self.ui.channel_treeview.selectionModel()    
+        # Create a list of select row indices
+        selected_row_list = [index.row() for index in reversed(sorted(selection_model.selectedRows()))]
+        # For each row selected
+        for i,row in enumerate(selected_row_list):
+            # only move the row while it is not the last element, and the row above it is not selected
+            # (note that while a row below may have been initially selected, it should by now, be one row lower
+            # since we start moving elements of the list upwards starting from the highest index)
+            while row < self.channel_model.rowCount()-1 and (row+1) not in selected_row_list:
+                # Remove the selected row
+                items = self.channel_model.takeRow(row)
+                # Add the selected row into a position one above
+                self.channel_model.insertRow(row+1,items)
+                # Since it is now a newly inserted row, select it again
+                selection_model.select(self.channel_model.indexFromItem(items[0]),QItemSelectionModel.SelectCurrent)
+                # reupdate the list of selected indices to reflect this change
+                selected_row_list[i] += 1
+                row += 1
+        self.update_plot_positions()
+        
+    def update_plot_positions(self):
+        # remove all widgets
+        layout_items = {}
+        for i in range(self.ui.plot_layout.count()):
+            if i == 0:
+                continue
+            item = self.ui.plot_layout.takeAt(i)
+
+        # add all widgets
+        for i in range(self.channel_model.rowCount()):
+            check_item = self.channel_model.item(i,CHANNEL_MODEL__CHECKBOX_INDEX)
+            channel = check_item.text()
+            if channel in self.plot_widgets:
+                self.ui.plot_layout.addWidget(self.plot_widgets[channel])
+                if check_item.checkState() == Qt.Checked and check_item.isEnabled():
+                    self.plot_widgets[channel].show()
+                else:
+                    self.plot_widgets[channel].hide()
         
 class Shot(object):
     def __init__(self, path):
