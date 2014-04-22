@@ -99,7 +99,7 @@
          <item>
           <widget class="QTreeView" name="shot_treeview">
            <property name="editTriggers">
-            <set>QAbstractItemView::DoubleClicked|QAbstractItemView::EditKeyPressed</set>
+            <set>QAbstractItemView::DoubleClicked|QAbstractItemView::EditKeyPressed|QAbstractItemView::SelectedClicked</set>
            </property>
            <property name="selectionMode">
             <enum>QAbstractItemView::ExtendedSelection</enum>

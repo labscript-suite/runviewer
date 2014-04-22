@@ -36,6 +36,14 @@ SHOT_MODEL__PATH_INDEX = 1
 CHANNEL_MODEL__CHECKBOX_INDEX = 0
 CHANNEL_MODEL__CHANNEL_INDEX = 0
 
+# stupid hack to work around the fact that PySide screws with the type of a variable when it goes into a model. Enums are converted to ints, which then
+# can't be interpreted by QColor correctly (for example)
+# unfortunately Qt doesn't provide a python list structure of enums, so you have to build the list yourself.
+def int_to_enum(enum_list, value):
+    for item in enum_list:
+        if item == value:
+            return item
+
 class ColourDelegate(QItemDelegate):
 
     def __init__(self, view, *args, **kwargs):
@@ -74,9 +82,14 @@ class ColourDelegate(QItemDelegate):
                 break
             
     def setModelData(self, editor, model, index):
-        model.setData(index, editor.itemIcon(editor.currentIndex()), Qt.DecorationRole)
+        icon = editor.itemIcon(editor.currentIndex())
         colour = editor.itemData(editor.currentIndex())
-        model.setData(index, lambda colour=colour:colour, Qt.UserRole)
+        
+        # Note, all data being written to the model must be read out of the editor PRIOR to calling model.setData()
+        #       This is because a call to model.setData() triggers setEditorData(), which messes up subsequent
+        #       calls to the editor to determine the currently selected item/data
+        model.setData(index, icon, Qt.DecorationRole)
+        model.setData(index,lambda clist=self._colours,colour=colour:int_to_enum(clist,colour), Qt.UserRole)
         
     def updateEditorGeometry(self, editor, option, index):
         editor.setGeometry(option.rect);
@@ -144,15 +157,25 @@ class RunViewer(object):
                 colour_item.setEditable(False)
                 
             colour_item.setData(icon, Qt.DecorationRole)
-            colour_item.setData(lambda colour=colour:colour, Qt.UserRole)
+            colour_item.setData(lambda clist=self.shot_colour_delegate._colours,colour=colour:int_to_enum(clist,colour), Qt.UserRole)
             
             # model.setData(index, editor.itemIcon(editor.currentIndex()), 
             # model.setData(index, editor.itemData(editor.currentIndex()), Qt.UserRole)
+            
+            
         
             self.update_channels_treeview()
-        else:
+        elif self.shot_model.indexFromItem(item).column() == SHOT_MODEL__COLOUR_INDEX:
             #update the plot colours
-            pass
+            
+            # get reference to the changed shot
+            current_shot = self.shot_model.item(self.shot_model.indexFromItem(item).row(),SHOT_MODEL__CHECKBOX_INDEX).data()
+            
+            # find and update the pen of the plot items
+            for channel in self.plot_items.keys():
+                for shot in self.plot_items[channel]:
+                    if shot == current_shot:
+                        self.plot_items[channel][shot].setPen(pg.mkPen(QColor(item.data(Qt.UserRole)()), width=2))
             
     def load_shot(self, shot):
         # add shot to shot list
