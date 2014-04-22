@@ -68,16 +68,16 @@
             </widget>
            </item>
            <item>
-            <widget class="QPushButton" name="pushButton">
+            <widget class="QPushButton" name="enable_selected_shots">
              <property name="text">
-              <string>Enable Selected</string>
+              <string>Tick selected</string>
              </property>
             </widget>
            </item>
            <item>
-            <widget class="QPushButton" name="pushButton_2">
+            <widget class="QPushButton" name="disable_selected_shots">
              <property name="text">
-              <string>Disable Selected</string>
+              <string>Untick selected</string>
              </property>
             </widget>
            </item>

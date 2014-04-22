@@ -131,6 +131,8 @@ class RunViewer(object):
         self.ui.channel_move_down.clicked.connect(self._move_down)
         self.ui.channel_move_to_top.clicked.connect(self._move_top)
         self.ui.channel_move_to_bottom.clicked.connect(self._move_bottom)
+        self.ui.enable_selected_shots.clicked.connect(self._enable_selected_shots)
+        self.ui.disable_selected_shots.clicked.connect(self._disable_selected_shots)
         
         
         self.ui.show()
@@ -354,6 +356,22 @@ class RunViewer(object):
         for i in range(10):
             shot = TempShot(i)
             self.load_shot(shot)
+    
+    def _enable_selected_shots(self):
+        self.update_ticks_of_selected_shots(Qt.Checked)
+        
+    def _disable_selected_shots(self):
+        self.update_ticks_of_selected_shots(Qt.Unchecked)
+        
+    def update_ticks_of_selected_shots(self, state):
+        # Get the selection model from the treeview
+        selection_model = self.ui.shot_treeview.selectionModel()
+        # Create a list of select row indices
+        selected_row_list = [index.row() for index in sorted(selection_model.selectedRows())]
+        # for each row selected
+        for row in selected_row_list:
+            check_item = self.shot_model.item(row,SHOT_MODEL__CHECKBOX_INDEX)
+            check_item.setCheckState(state)
     
     def _move_up(self):        
         # Get the selection model from the treeview
