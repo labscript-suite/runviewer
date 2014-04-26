@@ -481,7 +481,37 @@ class Shot(object):
     def __init__(self, path):
         self.path = path
         
-    def get_traces(self):
+        # Parse connection table
+        
+        # store list of channels
+        self._channels = []
+        
+    @property
+    def channels(self):
+        return self._channels
+    
+    def clear_cache(self):
+        # clear cache variables to cut down on memory usage
+        pass
+    
+    def get_traces(self):  
+        # if traces cached:
+        #    return cached traces and waits
+    
+        # find master pseudoclock, and build traces for this device
+        
+        # find children of master pseudoclock which are not Trigger of Pseudoclock devices
+        # and build traces for these devices
+    
+        # for each secondary pseudoclock:
+        #    find the trigger trace
+        #    build traces for secondary pseudoclock device (and children), offsetting times appropriately by trigger_delay and trigger time
+        
+        # get list of wait points
+                
+        # store this built information in cache variables
+                
+        # return list of traces and wait times
         pass
         
 class TempShot(Shot):
