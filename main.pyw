@@ -14,6 +14,7 @@
 import os
 import sys
 import time
+import threading
 
 import zprocess.locking, labscript_utils.h5_lock, h5py
 zprocess.locking.set_client_process_name('runviewer')
@@ -29,6 +30,10 @@ pg.setConfigOption('foreground', 'k')
 
 import labscript_utils.excepthook
 from qtutils import *
+from blacs.connections import ConnectionTable
+import labscript_devices
+
+from resample import resample as _resample
 
 SHOT_MODEL__COLOUR_INDEX = 0
 SHOT_MODEL__CHECKBOX_INDEX = 1
@@ -133,6 +138,7 @@ class RunViewer(object):
         self.ui.channel_move_to_bottom.clicked.connect(self._move_bottom)
         self.ui.enable_selected_shots.clicked.connect(self._enable_selected_shots)
         self.ui.disable_selected_shots.clicked.connect(self._disable_selected_shots)
+        self.ui.add_shot.clicked.connect(self.on_add_shot)
         
         
         self.ui.show()
@@ -142,7 +148,46 @@ class RunViewer(object):
         self.plot_widgets = {}
         self.plot_items = {}
         
-        self.temp_load_shots()
+        # start resample thread
+        self._resample = False
+        self._thread = threading.Thread(target=self._resample_thread)
+        self._thread.daemon = True
+        self._thread.start()
+        
+        # self.temp_load_shots()
+        shot = Shot(r'C:\Users\Phil\Documents\Programming\labscript_suite\labscript\example.h5')
+        self.load_shot(shot)
+    
+    def on_add_shot(self):
+        dialog = QFileDialog(self.ui,"Select file to load", r'C:\Users\Phil\Documents\Programming\labscript_suite\labscript', "HDF5 files (*.h5 *.hdf5)")
+        dialog.setViewMode(QFileDialog.Detail)
+        dialog.setFileMode(QFileDialog.ExistingFile)
+        if dialog.exec_():
+            selected_files = dialog.selectedFiles()
+            popup_warning = False
+            for file in selected_files:
+                try:
+                    filepath = str(file)
+                    # Qt has this weird behaviour where if you type in the name of a file that exists
+                    # but does not have the extension you have limited the dialog to, the OK button is greyed out
+                    # but you can hit enter and the file will be selected. 
+                    # So we must check the extension of each file here!
+                    if filepath.endswith('.h5') or filepath.endswith('.hdf5'):
+                        shot = Shot(filepath)
+                        self.load_shot(shot)
+                    else:
+                        popup_warning = True
+                except:
+                    popup_warning = True
+                    raise
+            if popup_warning:
+                message = QMessageBox()
+                message.setText("Warning: Some shots were not loaded because they were not valid hdf5 files")
+                message.setIcon(QMessageBox.Warning)
+                message.setWindowTitle("Runviewer")
+                message.setStandardButtons(QMessageBox.Ok)
+                message.exec_()
+                
     
     def on_shot_selection_changed(self, item):
         if self.shot_model.indexFromItem(item).column() == SHOT_MODEL__CHECKBOX_INDEX:
@@ -332,7 +377,8 @@ class RunViewer(object):
                     self.plot_widgets[channel].setLabel('left', channel, units='V')
                     self.plot_widgets[channel].setLabel('bottom', 'Time', units='s')
                     self.plot_widgets[channel].showAxis('right', True)
-                    self.plot_widgets[channel].setXLink('runviewer - time axis link')         
+                    self.plot_widgets[channel].setXLink('runviewer - time axis link') 
+                    self.plot_widgets[channel].sigXRangeChanged.connect(self.on_x_range_changed)                     
                     self.ui.plot_layout.addWidget(self.plot_widgets[channel])
                     
                     for shot, colour in ticked_shots.items():
@@ -344,7 +390,114 @@ class RunViewer(object):
             else:
                 if channel in self.plot_widgets:
                     self.plot_widgets[channel].hide()
-                
+
+    def on_x_range_changed(self, *args):
+        # print 'x range changed'
+        self._resample = True
+        
+    @inmain_decorator(wait_for_return=True)
+    def _get_resample_params(self, channel, shot):
+        rect = self.plot_items[channel][shot].getViewBox().viewRect()
+        xmin, xmax = rect.left(), rect.width() + rect.left()
+        dx = xmax - xmin
+        return xmin, xmax, dx
+    
+    def resample(self,data_x, data_y, xmin, xmax, stop_time):
+        """This is a function for downsampling the data before plotting
+        it. Unlike using nearest neighbour interpolation, this method
+        preserves the features of the plot. It chooses what value to
+        use based on what values within a region are most different
+        from the values it's already chosen. This way, spikes of a short
+        duration won't just be skipped over as they would with any sort
+        of interpolation."""
+        x_out = numpy.float32(numpy.linspace(xmin, xmax, 4000))
+        y_out = numpy.empty(len(x_out), dtype=numpy.float32)
+        data_x = numpy.float32(data_x)
+        data_y = numpy.float32(data_y)
+        _resample(data_x, data_y, x_out, y_out, numpy.float32(stop_time))
+        # y_out = self.__resample3(data_x, data_y, x_out,numpy.float32(stop_time))
+        return x_out, y_out
+    
+    def __resample3(self,x_in,y_in,x_out, stop_time):
+        """This is a Python implementation of the C extension. For
+        debugging and developing the C extension."""
+        y_out = numpy.empty(len(x_out))
+        i = 0
+        j = 1
+        # A couple of special cases that I don't want to have to put extra checks in for:
+        if x_out[-1] < x_in[0] or x_out[0] > stop_time:
+            # We're all the way to the left of the data or all the way to the right. Fill with NaNs:
+            while i < len(x_out):
+                y_out[i] = numpy.float('NaN')
+                i += 1
+        elif x_out[0] > x_in[-1]:
+            # We're after the final clock tick, but before stop_time
+            while i < len(x_out):
+                if x_out[i] < stop_time:
+                    y_out[i] = y_in[-1]
+                else:
+                    y_out[i] = numpy.float('NaN')
+                i += 1
+        else:
+            # Until we get to the data, fill the output array with NaNs (which
+            # get ignored when plotted)
+            while x_out[i] < x_in[0]:
+                y_out[i] = numpy.float('NaN')
+                i += 1
+            # If we're some way into the data, we need to skip ahead to where
+            # we want to get the first datapoint from:
+            while x_in[j] < x_out[i]:
+                j += 1
+            # Get the first datapoint:
+            y_out[i] = y_in[j-1]
+            i += 1
+            # Get values until we get to the end of the data:
+            while j < len(x_in) and i < len(x_out):
+                # This is 'nearest neighbour on the left' interpolation. It's
+                # what we want if none of the source values checked in the
+                # upcoming loop are used:
+                y_out[i] = y_in[j-1]
+                while j < len(x_in) and x_in[j] < x_out[i]:
+                    # Would using this source value cause the interpolated values
+                    # to make a bigger jump?
+                    if numpy.abs(y_in[j] - y_out[i-1]) > numpy.abs(y_out[i] - y_out[i-1]):
+                        # If so, use this source value:
+                        y_out[i] = y_in[j]
+                    j+=1
+                i += 1
+            # Get the last datapoint:
+            if i < len(x_out):
+                y_out[i] = y_in[-1]
+                i += 1
+            # Fill the remainder of the array with the last datapoint,
+            # if t < stop_time, and then NaNs after that:
+            while i < len(x_out):
+                if x_out[i] < stop_time:
+                    y_out[i] = y_in[-1]
+                else:
+                    y_out[i] = numpy.float('NaN')
+                i += 1
+        return y_out
+    
+    def _resample_thread(self):
+        while True:
+            if self._resample:
+                self._resample = False
+                # print 'resampling'
+                ticked_shots = inmain(self.get_selected_shots_and_colours)
+                for shot, colour in ticked_shots.items():
+                    for channel in shot.traces:
+                        xmin, xmax, dx = self._get_resample_params(channel,shot)
+                        
+                        # We go a bit outside the visible range so that scrolling
+                        # doesn't immediately go off the edge of the data, and the
+                        # next resampling might have time to fill in more data before
+                        # the user sees any empty space.
+                        xnew, ynew = self.resample(shot.traces[channel][0], shot.traces[channel][1], xmin-0.2*dx, xmax+0.2*dx, shot.stop_time)
+                        inmain(self.plot_items[channel][shot].setData, xnew, ynew, pen=pg.mkPen(QColor(colour), width=2))
+                        
+            time.sleep(0.5)
+            
     def on_x_axis_reset(self):
         self._hidden_plot[0].enableAutoRange(axis=pg.ViewBox.XAxis)   
         
@@ -481,25 +634,78 @@ class Shot(object):
     def __init__(self, path):
         self.path = path
         
-        # Parse connection table
+        
+        self._traces = {}
+        
+        # TODO: Get this dynamically
+        device_list = ['PulseBlaster', 'NI_PCIe_6363', 'NI_PCI_6733']
+        
+        # Load connection table
+        self.connection_table = ConnectionTable(path)
         
         # store list of channels
-        self._channels = []
+        self._channels = {}
+        
+        # open h5 file
+        with h5py.File(path, 'r') as file:
+            # Get master pseudoclock
+            self.master_pseudoclock_name = file['connection table'].attrs['master_pseudoclock']
+            
+            # get stop time
+            self.stop_time = file['devices/%s'%self.master_pseudoclock_name].attrs['stop_time']
+            # self.stop_time = 50
+        
+            # parse connection table
+            self.devices = self.connection_table.find_devices(device_list)
+                      
+            # Get list of all channels
+            for device_name, device_class in self.devices.items():
+                device = self.connection_table.find_by_name(device_name)
+                # for each child (channel) of this device
+                for child_name, child in device.child_list.items():
+                    # skip children which are devices themselves
+                    if child_name in self.devices:
+                        continue
+                    # if this child (channel) has it's own children, it is likely a
+                    # DDS, so we want it's children, not itself
+                    if child.child_list and child.device_class != 'Trigger':
+                        for grandchild_name, grandchild in child.child_list.items():
+                            self._channels[grandchild_name] = {'device_name':device_name, 'port':'%s_%s'%(child.parent_port, grandchild.parent_port)}
+                    # else it has no children, so it is the channel we want
+                    else:
+                        self._channels[child_name] = {'device_name':device_name, 'port':'%s'%(child.parent_port)}
+        
+        
+        
         
     @property
     def channels(self):
-        return self._channels
+        return self._channels.keys()
     
     def clear_cache(self):
         # clear cache variables to cut down on memory usage
         pass
     
-    def get_traces(self):  
+    @property
+    def traces(self):
         # if traces cached:
         #    return cached traces and waits
-    
-        # find master pseudoclock, and build traces for this device
+        if self._traces:
+            return self._traces
         
+        # find master pseudoclock, and build traces for this device
+        # get the class of the master pseudoclock
+        master_pseudoclock_module = self.devices[self.master_pseudoclock_name]
+        # Load the master pseudoclock class
+        labscript_devices.import_device(master_pseudoclock_module)
+        master_pseudoclock_class = labscript_devices.get_runviewer_class(master_pseudoclock_module)
+        master_pseudoclock = master_pseudoclock_class(self.path,self.master_pseudoclock_name)
+        master_pseudoclock_traces = master_pseudoclock.get_traces()
+        
+        for channel, channel_properties in self._channels.items():
+            if channel_properties['device_name'] == self.master_pseudoclock_name and channel_properties['port'] in master_pseudoclock_traces:
+                self._traces[channel] = master_pseudoclock_traces[channel_properties['port']]
+            
         # find children of master pseudoclock which are not Trigger of Pseudoclock devices
         # and build traces for these devices
     
@@ -512,7 +718,7 @@ class Shot(object):
         # store this built information in cache variables
                 
         # return list of traces and wait times
-        pass
+        return self._traces
         
 class TempShot(Shot):
     def __init__(self, i):
