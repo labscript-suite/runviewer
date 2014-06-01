@@ -290,7 +290,7 @@ class RunViewer(object):
         
         # find list of channels to work with
         channels_to_add = channels_set.difference(treeview_channels)
-        for channel in channels_to_add:
+        for channel in sorted(channels_to_add):
             items = []
             check_item = QStandardItem(channel)
             check_item.setEditable(False)
@@ -366,7 +366,9 @@ class RunViewer(object):
                     # do we need to add any plot items for shots that were not previously selected?
                     for shot, colour in ticked_shots.items():
                         if shot not in self.plot_items[channel]:
-                            plot_item = self.plot_widgets[channel].plot(shot.traces[channel][0], shot.traces[channel][1], pen=pg.mkPen(QColor(colour), width=2))
+                            # plot_item = self.plot_widgets[channel].plot(shot.traces[channel][0], shot.traces[channel][1], pen=pg.mkPen(QColor(colour), width=2))
+                            # Add empty plot as it the custom resampling we do will happen quicker if we don't attempt to first plot all of the data
+                            plot_item = self.plot_widgets[channel].plot([],[], pen=pg.mkPen(QColor(colour), width=2), stepMode=True) 
                             self.plot_items[channel][shot] = plot_item
                     
                 # If no, create one
@@ -383,13 +385,17 @@ class RunViewer(object):
                     
                     for shot, colour in ticked_shots.items():
                         if channel in shot.traces:
-                            plot_item = self.plot_widgets[channel].plot(shot.traces[channel][0], shot.traces[channel][1], pen=pg.mkPen(QColor(colour), width=2))
+                            # plot_item = self.plot_widgets[channel].plot(shot.traces[channel][0], shot.traces[channel][1], pen=pg.mkPen(QColor(colour), width=2))
+                            # Add empty plot as it the custom resampling we do will happen quicker if we don't attempt to first plot all of the data
+                            plot_item = self.plot_widgets[channel].plot([],[], pen=pg.mkPen(QColor(colour), width=2), stepMode=True)
                             self.plot_items.setdefault(channel, {})
                             self.plot_items[channel][shot] = plot_item
                 
             else:
                 if channel in self.plot_widgets:
                     self.plot_widgets[channel].hide()
+                    
+        self._resample = True
 
     def on_x_range_changed(self, *args):
         # print 'x range changed'
@@ -400,9 +406,10 @@ class RunViewer(object):
         rect = self.plot_items[channel][shot].getViewBox().viewRect()
         xmin, xmax = rect.left(), rect.width() + rect.left()
         dx = xmax - xmin
-        return xmin, xmax, dx
+        view_range = self.plot_widgets[channel].viewRange()
+        return view_range[0][0], view_range[0][1], dx
     
-    def resample(self,data_x, data_y, xmin, xmax, stop_time):
+    def resample(self,data_x, data_y, xmin, xmax, stop_time, num_pixels):
         """This is a function for downsampling the data before plotting
         it. Unlike using nearest neighbour interpolation, this method
         preserves the features of the plot. It chooses what value to
@@ -410,13 +417,114 @@ class RunViewer(object):
         from the values it's already chosen. This way, spikes of a short
         duration won't just be skipped over as they would with any sort
         of interpolation."""
-        x_out = numpy.float32(numpy.linspace(xmin, xmax, 4000))
-        y_out = numpy.empty(len(x_out), dtype=numpy.float32)
-        data_x = numpy.float32(data_x)
-        data_y = numpy.float32(data_y)
-        _resample(data_x, data_y, x_out, y_out, numpy.float32(stop_time))
-        # y_out = self.__resample3(data_x, data_y, x_out,numpy.float32(stop_time))
+        #TODO: Only finely sample the currently visible region. Coarsely sample the rest
+        # x_out = numpy.float32(numpy.linspace(data_x[0], data_x[-1], 4000*(data_x[-1]-data_x[0])/(xmax-xmin)))
+        print 'xmin/xmax = %.9f, %.9f'%(xmin,xmax)
+        x_out = numpy.float64(numpy.linspace(xmin, xmax, 3*2000+1))
+        y_out = numpy.empty(len(x_out), dtype=numpy.float64)
+        data_x = numpy.float64(data_x)
+        data_y = numpy.float64(data_y)
+        
+        resampling = True
+        if resampling:
+            _resample(data_x, data_y, x_out, y_out, numpy.float64(stop_time))
+            # y_out = self.__resample4(data_x, data_y, x_out,numpy.float32(stop_time))
+        else:
+            x_out, y_out = data_x, data_y
+            
         return x_out, y_out
+    
+    def __resample4(self, x_in, y_in, x_out, stop_time):
+        #we want x-out to have three times the number of points as there are pixels
+        # Plus one at the end
+        y_out = numpy.empty(len(x_out))
+        print 'len x_out: %d'%len(x_out)
+        
+        # A couple of special cases that I don't want to have to put extra checks in for:
+        if x_out[-1] < x_in[0] or x_out[0] > stop_time:
+            # We're all the way to the left of the data or all the way to the right. Fill with NaNs:
+            y_out.fill('NaN')
+        elif x_out[0] > x_in[-1]:
+            # We're after the final clock tick, but before stop_time
+            i = 0
+            while i < len(x_out):
+                if x_out[i] < stop_time:
+                    y_out[i] = y_in[-1]
+                else:
+                    y_out[i] = numpy.float('NaN')
+                i += 1
+        else:
+            i = 0
+            j = 1
+            # Until we get to the data, fill the output array with NaNs (which
+            # get ignored when plotted)
+            while x_out[i] < x_in[0]:
+                y_out[i] = numpy.float('NaN')
+                y_out[i+1] = numpy.float('NaN')
+                y_out[i+2] = numpy.float('NaN')
+                i += 3 
+            # If we're some way into the data, we need to skip ahead to where
+            # we want to get the first datapoint from:
+            while x_in[j] < x_out[i]:
+                j += 1
+            
+            # Get the first datapoint:
+            # y_out[i] = y_in[j-1]
+            # i += 1
+            
+            
+            # Get values until we get to the end of the data:
+            while j < len(x_in) and i < len(x_out)-1: # Leave one spare for the final data point
+                # This is 'nearest neighbour on the left' interpolation. It's
+                # what we want if none of the source values checked in the
+                # upcoming loop are used:
+                y_out[i] = y_in[j-1]
+                i+=2
+                positive_jump_value = 0
+                positive_jump_index = j-1
+                negative_jump_value = 0
+                negative_jump_index = j-1
+                # now find the max and min values between this x_out time point and the next x_out timepoint
+                print i
+                while j < len(x_in) and x_in[j] < x_out[i]:
+                    jump = y_in[j] - y_out[i-2]
+                    # would using this source value cause a bigger positive jump?
+                    if jump > 0 and jump > positive_jump_value:
+                        positive_jump_value = jump
+                        positive_jump_index = j
+                    # would using this source value cause a bigger negative jump?
+                    elif jump < 0 and jump < negative_jump_value:
+                        negative_jump_value = jump
+                        negative_jump_index = j
+                    
+                    j+=1
+                    
+                if positive_jump_index < negative_jump_index:
+                    y_out[i-1] = y_in[positive_jump_index]
+                    y_out[i] = y_in[negative_jump_index]
+                    #TODO: We could override the x_out values with x_in[jump_index]
+                else:
+                    y_out[i-1] = y_in[negative_jump_index]
+                    y_out[i] = y_in[positive_jump_index]
+                    
+                i += 1
+                
+            # Get the last datapoint:
+            if j < len(x_in):
+                y_out[i] = y_in[j]
+                i += 1
+            # if i < len(x_out):
+                # y_out[i] = y_in[-1]
+                # i += 1
+            # Fill the remainder of the array with the last datapoint,
+            # if t < stop_time, and then NaNs after that:
+            while i < len(x_out):
+                if x_out[i] < stop_time:
+                    y_out[i] = y_in[-1]
+                else:
+                    y_out[i] = numpy.float('NaN')
+                i += 1
+        return y_out
     
     def __resample3(self,x_in,y_in,x_out, stop_time):
         """This is a Python implementation of the C extension. For
@@ -493,8 +601,9 @@ class RunViewer(object):
                         # doesn't immediately go off the edge of the data, and the
                         # next resampling might have time to fill in more data before
                         # the user sees any empty space.
-                        xnew, ynew = self.resample(shot.traces[channel][0], shot.traces[channel][1], xmin-0.2*dx, xmax+0.2*dx, shot.stop_time)
-                        inmain(self.plot_items[channel][shot].setData, xnew, ynew, pen=pg.mkPen(QColor(colour), width=2))
+                        print channel
+                        xnew, ynew = self.resample(shot.traces[channel][0], shot.traces[channel][1], xmin, xmax, shot.stop_time, dx)
+                        inmain(self.plot_items[channel][shot].setData, xnew, ynew, pen=pg.mkPen(QColor(colour), width=2), stepMode=True)
                         
             time.sleep(0.5)
             
@@ -633,9 +742,11 @@ class RunViewer(object):
 class Shot(object):
     def __init__(self, path):
         self.path = path
-        
-        
-        self._traces = {}
+                
+        # Store list of traces
+        self._traces = None
+        # store list of channels
+        self._channels = None
         
         # TODO: Get this dynamically
         device_list = ['PulseBlaster', 'NI_PCIe_6363', 'NI_PCI_6733']
@@ -643,8 +754,6 @@ class Shot(object):
         # Load connection table
         self.connection_table = ConnectionTable(path)
         
-        # store list of channels
-        self._channels = {}
         
         # open h5 file
         with h5py.File(path, 'r') as file:
@@ -656,30 +765,82 @@ class Shot(object):
             # self.stop_time = 50
         
             # parse connection table
-            self.devices = self.connection_table.find_devices(device_list)
-                      
+            # self.devices = self.connection_table.find_devices(device_list)
+            
+            self.device_names = file['devices'].keys()
+    
+    def delete_cache(self):
+        self._channels = None
+        self._traces = None
+        
+    def _load(self):
+        if self._channels is None:
+            self._channels = {}
+        if self._traces is None:
+            self._traces = {}
+            
+        # Let's walk the connection table, starting with the master pseudoclock
+        master_pseudoclock_device = self.connection_table.find_by_name(self.master_pseudoclock_name)   
+        
+        # get the class of the master pseudoclock
+        master_pseudoclock_module = master_pseudoclock_device.device_class
+        # Load the master pseudoclock class
+        labscript_devices.import_device(master_pseudoclock_module)
+        master_pseudoclock_class = labscript_devices.get_runviewer_class(master_pseudoclock_module)
+        master_pseudoclock = master_pseudoclock_class(self.path, self.master_pseudoclock_name)
+        master_pseudoclock_traces = master_pseudoclock.get_traces()
+
+        # walk through all of the children of the master pseudoclock
+        self.walk_children(master_pseudoclock_device, master_pseudoclock_traces)
+            
+                
             # Get list of all channels
-            for device_name, device_class in self.devices.items():
-                device = self.connection_table.find_by_name(device_name)
-                # for each child (channel) of this device
-                for child_name, child in device.child_list.items():
-                    # skip children which are devices themselves
-                    if child_name in self.devices:
-                        continue
-                    # if this child (channel) has it's own children, it is likely a
-                    # DDS, so we want it's children, not itself
-                    if child.child_list and child.device_class != 'Trigger':
-                        for grandchild_name, grandchild in child.child_list.items():
-                            self._channels[grandchild_name] = {'device_name':device_name, 'port':'%s_%s'%(child.parent_port, grandchild.parent_port)}
-                    # else it has no children, so it is the channel we want
-                    else:
-                        self._channels[child_name] = {'device_name':device_name, 'port':'%s'%(child.parent_port)}
+            # for device_name, device_class in self.devices.items():
+                # device = self.connection_table.find_by_name(device_name)
+                # # for each child (channel) of this device
+                # for child_name, child in device.child_list.items():
+                    # # skip children which are devices themselves
+                    # print 'device name: %s, child_name %s'%(device_name, child_name)
+                    # if child_name in self.devices or child_name in file['devices']:
+                        # print 'ignoring child %s'%child_name
+                        # continue
+                    # # if this child (channel) has it's own children, it is likely a
+                    # # DDS, so we want it's children, not itself
+                    # if child.child_list and child.device_class != 'Trigger':
+                        # for grandchild_name, grandchild in child.child_list.items():
+                            # self._channels[grandchild_name] = {'device_name':device_name, 'port':'%s_%s'%(child.parent_port, grandchild.parent_port)}
+                    # # else it has no children, so it is the channel we want
+                    # else:
+                        # self._channels[child_name] = {'device_name':device_name, 'port':'%s'%(child.parent_port)}
         
         
+    def walk_children(self, device, device_traces):
+        # iterate over all the children of this device
+        for child_name, child in device.child_list.items():
+            # if this child is a device, load the device!
+            if child_name in self.device_names:
+                pass
+            # This item is not a device, and if it has children and is not of class Trigger, it is probably something
+            # like a DDS for which we want to show traces of the grandchildren only
+            elif child.child_list and child.device_class != 'Trigger':
+                for grandchild_name, grandchild in child.child_list.items():
+                    port = '%s_%s'%(child.parent_port, grandchild.parent_port)
+                    if port in device_traces:
+                        self._channels[grandchild_name] = {'device_name':device.name, 'port':port}
+                        self._traces[grandchild_name] = device_traces[self._channels[grandchild_name]['port']]
+            # else it has no children, so it is the channel we want
+            else:
+                port = '%s'%(child.parent_port)
+                if port in device_traces:
+                    self._channels[child_name] = {'device_name':device.name, 'port':port}
+                    self._traces[child_name] = device_traces[self._channels[child_name]['port']]
         
         
     @property
     def channels(self):
+        if self._channels is None:
+            self._load()
+            
         return self._channels.keys()
     
     def clear_cache(self):
@@ -690,21 +851,22 @@ class Shot(object):
     def traces(self):
         # if traces cached:
         #    return cached traces and waits
-        if self._traces:
-            return self._traces
+        if self._traces is None:
+            self._load()
+        return self._traces
         
-        # find master pseudoclock, and build traces for this device
-        # get the class of the master pseudoclock
-        master_pseudoclock_module = self.devices[self.master_pseudoclock_name]
-        # Load the master pseudoclock class
-        labscript_devices.import_device(master_pseudoclock_module)
-        master_pseudoclock_class = labscript_devices.get_runviewer_class(master_pseudoclock_module)
-        master_pseudoclock = master_pseudoclock_class(self.path,self.master_pseudoclock_name)
-        master_pseudoclock_traces = master_pseudoclock.get_traces()
+        # # find master pseudoclock, and build traces for this device
+        # # get the class of the master pseudoclock
+        # master_pseudoclock_module = self.devices[self.master_pseudoclock_name]
+        # # Load the master pseudoclock class
+        # labscript_devices.import_device(master_pseudoclock_module)
+        # master_pseudoclock_class = labscript_devices.get_runviewer_class(master_pseudoclock_module)
+        # master_pseudoclock = master_pseudoclock_class(self.path,self.master_pseudoclock_name)
+        # master_pseudoclock_traces = master_pseudoclock.get_traces()
         
-        for channel, channel_properties in self._channels.items():
-            if channel_properties['device_name'] == self.master_pseudoclock_name and channel_properties['port'] in master_pseudoclock_traces:
-                self._traces[channel] = master_pseudoclock_traces[channel_properties['port']]
+        # for channel, channel_properties in self._channels.items():
+            # if channel_properties['device_name'] == self.master_pseudoclock_name and channel_properties['port'] in master_pseudoclock_traces:
+                # self._traces[channel] = master_pseudoclock_traces[channel_properties['port']]
             
         # find children of master pseudoclock which are not Trigger of Pseudoclock devices
         # and build traces for these devices
@@ -718,7 +880,7 @@ class Shot(object):
         # store this built information in cache variables
                 
         # return list of traces and wait times
-        return self._traces
+        # return self._traces
         
 class TempShot(Shot):
     def __init__(self, i):
