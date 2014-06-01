@@ -419,7 +419,6 @@ class RunViewer(object):
         of interpolation."""
         #TODO: Only finely sample the currently visible region. Coarsely sample the rest
         # x_out = numpy.float32(numpy.linspace(data_x[0], data_x[-1], 4000*(data_x[-1]-data_x[0])/(xmax-xmin)))
-        print 'xmin/xmax = %.9f, %.9f'%(xmin,xmax)
         x_out = numpy.float64(numpy.linspace(xmin, xmax, 3*2000+1))
         y_out = numpy.empty(len(x_out), dtype=numpy.float64)
         data_x = numpy.float64(data_x)
@@ -601,7 +600,6 @@ class RunViewer(object):
                         # doesn't immediately go off the edge of the data, and the
                         # next resampling might have time to fill in more data before
                         # the user sees any empty space.
-                        print channel
                         xnew, ynew = self.resample(shot.traces[channel][0], shot.traces[channel][1], xmin, xmax, shot.stop_time, dx)
                         inmain(self.plot_items[channel][shot].setData, xnew, ynew, pen=pg.mkPen(QColor(colour), width=2), stepMode=True)
                         
@@ -762,10 +760,6 @@ class Shot(object):
             
             # get stop time
             self.stop_time = file['devices/%s'%self.master_pseudoclock_name].attrs['stop_time']
-            # self.stop_time = 50
-        
-            # parse connection table
-            # self.devices = self.connection_table.find_devices(device_list)
             
             self.device_names = file['devices'].keys()
     
@@ -782,44 +776,38 @@ class Shot(object):
         # Let's walk the connection table, starting with the master pseudoclock
         master_pseudoclock_device = self.connection_table.find_by_name(self.master_pseudoclock_name)   
         
-        # get the class of the master pseudoclock
-        master_pseudoclock_module = master_pseudoclock_device.device_class
-        # Load the master pseudoclock class
-        labscript_devices.import_device(master_pseudoclock_module)
-        master_pseudoclock_class = labscript_devices.get_runviewer_class(master_pseudoclock_module)
-        master_pseudoclock = master_pseudoclock_class(self.path, self.master_pseudoclock_name)
-        master_pseudoclock_traces = master_pseudoclock.get_traces()
-
-        # walk through all of the children of the master pseudoclock
-        self.walk_children(master_pseudoclock_device, master_pseudoclock_traces)
+        self._load_device(master_pseudoclock_device)
             
-                
-            # Get list of all channels
-            # for device_name, device_class in self.devices.items():
-                # device = self.connection_table.find_by_name(device_name)
-                # # for each child (channel) of this device
-                # for child_name, child in device.child_list.items():
-                    # # skip children which are devices themselves
-                    # print 'device name: %s, child_name %s'%(device_name, child_name)
-                    # if child_name in self.devices or child_name in file['devices']:
-                        # print 'ignoring child %s'%child_name
-                        # continue
-                    # # if this child (channel) has it's own children, it is likely a
-                    # # DDS, so we want it's children, not itself
-                    # if child.child_list and child.device_class != 'Trigger':
-                        # for grandchild_name, grandchild in child.child_list.items():
-                            # self._channels[grandchild_name] = {'device_name':device_name, 'port':'%s_%s'%(child.parent_port, grandchild.parent_port)}
-                    # # else it has no children, so it is the channel we want
-                    # else:
-                        # self._channels[child_name] = {'device_name':device_name, 'port':'%s'%(child.parent_port)}
+    def _load_device(self, device, clock=None):
+        try:
+            print 'loading %s'%device.name
+            module = device.device_class
+            # Load the master pseudoclock class
+            labscript_devices.import_device(module)
+            device_class = labscript_devices.get_runviewer_class(module)
+            device_instance = device_class(self.path, device.name)
+            traces = device_instance.get_traces(clock)
+
+            # walk through all of the children of the master pseudoclock
+            self._walk_children(device, traces)
+        except Exception:
+            #TODO: print/log exception traceback
+            # if device.name == 'ni_card_0' or device.name == 'pulseblaster_0' or device.name == 'pineblaster_0' or device.name == 'ni_card_1':
+                # raise
+            if hasattr(device, 'name'):
+                print 'Failed to load device %s'%device.name
+            else:
+                print 'Failed to load device (unknown name, device object does not have attribute name)'
         
-        
-    def walk_children(self, device, device_traces):
+    def _walk_children(self, device, device_traces):
         # iterate over all the children of this device
         for child_name, child in device.child_list.items():
             # if this child is a device, load the device!
             if child_name in self.device_names:
-                pass
+                if child.parent_port in device_traces:
+                    self._load_device(child, device_traces[child.parent_port])
+                else:
+                    print 'Failed to load device %s'%child_name
             # This item is not a device, and if it has children and is not of class Trigger, it is probably something
             # like a DDS for which we want to show traces of the grandchildren only
             elif child.child_list and child.device_class != 'Trigger':
@@ -828,8 +816,17 @@ class Shot(object):
                     if port in device_traces:
                         self._channels[grandchild_name] = {'device_name':device.name, 'port':port}
                         self._traces[grandchild_name] = device_traces[self._channels[grandchild_name]['port']]
-            # else it has no children, so it is the channel we want
+            # else it has no children, or is a device Trigger
             else:
+                # if it is a trigger, loop over all children and load those devices
+                if child.device_class == 'Trigger':
+                    for grandchild_name, grandchild in child.child_list.items():
+                        if grandchild_name in self.device_names:
+                            if child.parent_port in device_traces:
+                                self._load_device(grandchild, device_traces[child.parent_port])
+                            else:
+                                print 'Failed to load device %s'%child_name
+                        
                 port = '%s'%(child.parent_port)
                 if port in device_traces:
                     self._channels[child_name] = {'device_name':device.name, 'port':port}
@@ -855,32 +852,6 @@ class Shot(object):
             self._load()
         return self._traces
         
-        # # find master pseudoclock, and build traces for this device
-        # # get the class of the master pseudoclock
-        # master_pseudoclock_module = self.devices[self.master_pseudoclock_name]
-        # # Load the master pseudoclock class
-        # labscript_devices.import_device(master_pseudoclock_module)
-        # master_pseudoclock_class = labscript_devices.get_runviewer_class(master_pseudoclock_module)
-        # master_pseudoclock = master_pseudoclock_class(self.path,self.master_pseudoclock_name)
-        # master_pseudoclock_traces = master_pseudoclock.get_traces()
-        
-        # for channel, channel_properties in self._channels.items():
-            # if channel_properties['device_name'] == self.master_pseudoclock_name and channel_properties['port'] in master_pseudoclock_traces:
-                # self._traces[channel] = master_pseudoclock_traces[channel_properties['port']]
-            
-        # find children of master pseudoclock which are not Trigger of Pseudoclock devices
-        # and build traces for these devices
-    
-        # for each secondary pseudoclock:
-        #    find the trigger trace
-        #    build traces for secondary pseudoclock device (and children), offsetting times appropriately by trigger_delay and trigger time
-        
-        # get list of wait points
-                
-        # store this built information in cache variables
-                
-        # return list of traces and wait times
-        # return self._traces
         
 class TempShot(Shot):
     def __init__(self, i):
