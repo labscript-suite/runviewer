@@ -376,7 +376,10 @@ class RunViewer(object):
                     self.plot_widgets[channel] = pg.PlotWidget(name=channel)
                     self.plot_widgets[channel].setMinimumHeight(200)
                     self.plot_widgets[channel].setMaximumHeight(200)
-                    self.plot_widgets[channel].setLabel('left', channel, units='V')
+                    if len(shot.traces[channel]) == 3:
+                        self.plot_widgets[channel].setLabel('left', channel, units=shot.traces[channel][2])
+                    else:
+                        self.plot_widgets[channel].setLabel('left', channel)
                     self.plot_widgets[channel].setLabel('bottom', 'Time', units='s')
                     self.plot_widgets[channel].showAxis('right', True)
                     self.plot_widgets[channel].setXLink('runviewer - time axis link') 
@@ -777,62 +780,36 @@ class Shot(object):
         master_pseudoclock_device = self.connection_table.find_by_name(self.master_pseudoclock_name)   
         
         self._load_device(master_pseudoclock_device)
-            
+    
+    def add_trace(self, name, trace, parent_device_name, connection):
+        self._channels[name] = {'device_name':parent_device_name, 'port':connection}
+        self._traces[name] = trace
+    
     def _load_device(self, device, clock=None):
         try:
             print 'loading %s'%device.name
             module = device.device_class
             # Load the master pseudoclock class
-            labscript_devices.import_device(module)
-            device_class = labscript_devices.get_runviewer_class(module)
-            device_instance = device_class(self.path, device.name)
-            traces = device_instance.get_traces(clock)
+            # labscript_devices.import_device(module)
+            device_class = labscript_devices.get_runviewer_parser(module)
+            device_instance = device_class(self.path, device)
+            clocklines_and_triggers = device_instance.get_traces(self.add_trace, clock)
 
-            # walk through all of the children of the master pseudoclock
-            self._walk_children(device, traces)
+            for name, trace in clocklines_and_triggers.items():
+                child_device = self.connection_table.find_by_name(name)
+                for grandchild_device_name, grandchild_device in child_device.child_list.items():
+                    self._load_device(grandchild_device, trace)
+            
         except Exception:
             #TODO: print/log exception traceback
-            # if device.name == 'ni_card_0' or device.name == 'pulseblaster_0' or device.name == 'pineblaster_0' or device.name == 'ni_card_1':
+            # if device.name == 'ni_card_0' or device.name == 'pulseblaster_0' or device.name == 'pineblaster_0' or device.name == 'ni_card_1' or device.name == 'novatechdds9m_0':
                 # raise
+            # raise
             if hasattr(device, 'name'):
                 print 'Failed to load device %s'%device.name
             else:
                 print 'Failed to load device (unknown name, device object does not have attribute name)'
-        
-    def _walk_children(self, device, device_traces):
-        # iterate over all the children of this device
-        for child_name, child in device.child_list.items():
-            # if this child is a device, load the device!
-            if child_name in self.device_names:
-                if child.parent_port in device_traces:
-                    self._load_device(child, device_traces[child.parent_port])
-                else:
-                    print 'Failed to load device %s'%child_name
-            # This item is not a device, and if it has children and is not of class Trigger, it is probably something
-            # like a DDS for which we want to show traces of the grandchildren only
-            elif child.child_list and child.device_class != 'Trigger':
-                for grandchild_name, grandchild in child.child_list.items():
-                    port = '%s_%s'%(child.parent_port, grandchild.parent_port)
-                    if port in device_traces:
-                        self._channels[grandchild_name] = {'device_name':device.name, 'port':port}
-                        self._traces[grandchild_name] = device_traces[self._channels[grandchild_name]['port']]
-            # else it has no children, or is a device Trigger
-            else:
-                # if it is a trigger, loop over all children and load those devices
-                if child.device_class == 'Trigger':
-                    for grandchild_name, grandchild in child.child_list.items():
-                        if grandchild_name in self.device_names:
-                            if child.parent_port in device_traces:
-                                self._load_device(grandchild, device_traces[child.parent_port])
-                            else:
-                                print 'Failed to load device %s'%child_name
-                        
-                port = '%s'%(child.parent_port)
-                if port in device_traces:
-                    self._channels[child_name] = {'device_name':device.name, 'port':port}
-                    self._traces[child_name] = device_traces[self._channels[child_name]['port']]
-        
-        
+    
     @property
     def channels(self):
         if self._channels is None:
