@@ -155,8 +155,8 @@ class RunViewer(object):
         self._thread.start()
         
         # self.temp_load_shots()
-        shot = Shot(r'C:\Users\Phil\Documents\Programming\labscript_suite\labscript\example.h5')
-        self.load_shot(shot)
+        # shot = Shot(r'C:\Users\Phil\Documents\Programming\labscript_suite\labscript\example.h5')
+        # self.load_shot(shot)
     
     def on_add_shot(self):
         dialog = QFileDialog(self.ui,"Select file to load", r'C:\Users\Phil\Documents\Programming\labscript_suite\labscript', "HDF5 files (*.h5 *.hdf5)")
@@ -295,7 +295,7 @@ class RunViewer(object):
             check_item = QStandardItem(channel)
             check_item.setEditable(False)
             check_item.setCheckable(True)
-            check_item.setCheckState(Qt.Checked)
+            check_item.setCheckState(Qt.Unchecked)
             items.append(check_item)
             # channel_name_item = QStandardItem(channel)
             # channel_name_item.setEditable(False)
@@ -373,33 +373,46 @@ class RunViewer(object):
                     
                 # If no, create one
                 else:
-                    self.plot_widgets[channel] = pg.PlotWidget(name=channel)
-                    self.plot_widgets[channel].setMinimumHeight(200)
-                    self.plot_widgets[channel].setMaximumHeight(200)
-                    if len(shot.traces[channel]) == 3:
-                        self.plot_widgets[channel].setLabel('left', channel, units=shot.traces[channel][2])
-                    else:
-                        self.plot_widgets[channel].setLabel('left', channel)
-                    self.plot_widgets[channel].setLabel('bottom', 'Time', units='s')
-                    self.plot_widgets[channel].showAxis('right', True)
-                    self.plot_widgets[channel].setXLink('runviewer - time axis link') 
-                    self.plot_widgets[channel].sigXRangeChanged.connect(self.on_x_range_changed)                     
-                    self.ui.plot_layout.addWidget(self.plot_widgets[channel])
-                    
-                    for shot, colour in ticked_shots.items():
-                        if channel in shot.traces:
-                            # plot_item = self.plot_widgets[channel].plot(shot.traces[channel][0], shot.traces[channel][1], pen=pg.mkPen(QColor(colour), width=2))
-                            # Add empty plot as it the custom resampling we do will happen quicker if we don't attempt to first plot all of the data
-                            plot_item = self.plot_widgets[channel].plot([],[], pen=pg.mkPen(QColor(colour), width=2), stepMode=True)
-                            self.plot_items.setdefault(channel, {})
-                            self.plot_items[channel][shot] = plot_item
+                    self.create_plot(channel, ticked_shots)
                 
             else:
-                if channel in self.plot_widgets:
-                    self.plot_widgets[channel].hide()
+                if channel not in self.plot_widgets:
+                    self.create_plot(channel, ticked_shots)
+                self.plot_widgets[channel].hide()
                     
+        print 'done'
         self._resample = True
 
+    def create_plot(self, channel, ticked_shots):
+        print channel
+        self.plot_widgets[channel] = pg.PlotWidget(name=channel)
+        self.plot_widgets[channel].setMinimumHeight(200)
+        self.plot_widgets[channel].setMaximumHeight(200)
+        self.plot_widgets[channel].setLabel('bottom', 'Time', units='s')
+        self.plot_widgets[channel].showAxis('right', True)
+        self.plot_widgets[channel].setXLink('runviewer - time axis link') 
+        self.plot_widgets[channel].sigXRangeChanged.connect(self.on_x_range_changed)                     
+        self.ui.plot_layout.addWidget(self.plot_widgets[channel])
+        
+        has_units = False
+        units = ''
+        for shot, colour in ticked_shots.items():
+            if channel in shot.traces:
+                # plot_item = self.plot_widgets[channel].plot(shot.traces[channel][0], shot.traces[channel][1], pen=pg.mkPen(QColor(colour), width=2))
+                # Add empty plot as it the custom resampling we do will happen quicker if we don't attempt to first plot all of the data
+                plot_item = self.plot_widgets[channel].plot([],[], pen=pg.mkPen(QColor(colour), width=2), stepMode=True)
+                self.plot_items.setdefault(channel, {})
+                self.plot_items[channel][shot] = plot_item
+                
+                if len(shot.traces[channel]) == 3:
+                    has_units = True
+                    units = shot.traces[channel][2]
+        
+        if has_units:
+            self.plot_widgets[channel].setLabel('left', channel, units=units)
+        else:
+            self.plot_widgets[channel].setLabel('left', channel)
+        
     def on_x_range_changed(self, *args):
         # print 'x range changed'
         self._resample = True
@@ -596,18 +609,32 @@ class RunViewer(object):
                 # print 'resampling'
                 ticked_shots = inmain(self.get_selected_shots_and_colours)
                 for shot, colour in ticked_shots.items():
-                    for channel in shot.traces:
-                        xmin, xmax, dx = self._get_resample_params(channel,shot)
-                        
-                        # We go a bit outside the visible range so that scrolling
-                        # doesn't immediately go off the edge of the data, and the
-                        # next resampling might have time to fill in more data before
-                        # the user sees any empty space.
-                        xnew, ynew = self.resample(shot.traces[channel][0], shot.traces[channel][1], xmin, xmax, shot.stop_time, dx)
-                        inmain(self.plot_items[channel][shot].setData, xnew, ynew, pen=pg.mkPen(QColor(colour), width=2), stepMode=True)
-                        
+                    for channel in shot.traces:                        
+                        if self.channel_checked_and_enabled(channel):
+                            try:
+                                xmin, xmax, dx = self._get_resample_params(channel,shot)
+                                
+                                # We go a bit outside the visible range so that scrolling
+                                # doesn't immediately go off the edge of the data, and the
+                                # next resampling might have time to fill in more data before
+                                # the user sees any empty space.
+                                xnew, ynew = self.resample(shot.traces[channel][0], shot.traces[channel][1], xmin, xmax, shot.stop_time, dx)
+                                inmain(self.plot_items[channel][shot].setData, xnew, ynew, pen=pg.mkPen(QColor(colour), width=2), stepMode=True)
+                            except Exception:
+                                #self._resample = True
+                                pass
             time.sleep(0.5)
-            
+    
+    @inmain_decorator(wait_for_return=True)
+    def channel_checked_and_enabled(self, channel):
+        index = self.channel_model.index(0, CHANNEL_MODEL__CHANNEL_INDEX)
+        indexes = self.channel_model.match(index, Qt.DisplayRole, channel, 1, Qt.MatchExactly)
+        if len(indexes) == 1:
+            check_item = self.channel_model.itemFromIndex(indexes[0])
+            if check_item.checkState() == Qt.Checked and check_item.isEnabled():
+                return True
+        return False
+    
     def on_x_axis_reset(self):
         self._hidden_plot[0].enableAutoRange(axis=pg.ViewBox.XAxis)   
         
