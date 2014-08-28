@@ -15,23 +15,52 @@ import os
 import sys
 import time
 import threading
+import logging
+import ctypes
+import socket
+from Queue import Queue
 
+import labscript_utils.excepthook
+from labscript_utils.setup_logging import setup_logging
+logger = setup_logging('runviewer')
+labscript_utils.excepthook.set_logger(logger)
+
+from zprocess import zmq_get, ZMQServer
 import zprocess.locking, labscript_utils.h5_lock, h5py
 zprocess.locking.set_client_process_name('runviewer')
-from PySide.QtCore import *
-from PySide.QtGui import *
-from PySide.QtUiTools import QUiLoader
+
+lower_argv = [s.lower() for s in sys.argv]
+qt_type = 'PyQt4'
+if 'pyside' in lower_argv:
+    # Import Qt
+    from PySide.QtCore import *
+    from PySide.QtGui import *
+    qt_type = 'PySide'
+    # from PySide.QtUiTools import QUiLoader
+elif 'pyqt' in lower_argv:
+    from PyQt4.QtCore import *
+    from PyQt4.QtGui import *
+else:
+    try:
+        from PyQt4.QtCore import *
+        from PyQt4.QtGui import *
+    except Exception:
+        from PySide.QtCore import *
+        from PySide.QtGui import *
+        qt_type = 'PySide'
+        
 import numpy
 
-# must be imported after PySide
+# must be imported after PySide/PyQt4
 import pyqtgraph as pg
 pg.setConfigOption('background', 'w')
 pg.setConfigOption('foreground', 'k')
 
-import labscript_utils.excepthook
 from qtutils import *
 from blacs.connections import ConnectionTable
 import labscript_devices
+
+from labscript_utils.labconfig import LabConfig, config_prefix
 
 from resample import resample as _resample
 
@@ -48,6 +77,7 @@ def int_to_enum(enum_list, value):
     for item in enum_list:
         if item == value:
             return item
+    return value
 
 class ColourDelegate(QItemDelegate):
 
@@ -81,6 +111,8 @@ class ColourDelegate(QItemDelegate):
     
     def setEditorData(self, editor, index):
         value = index.model().data(index, Qt.UserRole)
+        if qt_type == 'PyQt4':
+            value = value.toPyObject()
         for i in range(editor.count()):
             if editor.itemData(i) == value():
                 editor.setCurrentIndex(i)
@@ -89,6 +121,8 @@ class ColourDelegate(QItemDelegate):
     def setModelData(self, editor, model, index):
         icon = editor.itemIcon(editor.currentIndex())
         colour = editor.itemData(editor.currentIndex())
+        if qt_type == 'PyQt4':
+            colour = colour.toPyObject()
         
         # Note, all data being written to the model must be read out of the editor PRIOR to calling model.setData()
         #       This is because a call to model.setData() triggers setEditorData(), which messes up subsequent
@@ -102,7 +136,7 @@ class ColourDelegate(QItemDelegate):
         
 class RunViewer(object):
     def __init__(self):
-        self.ui = QUiLoader().load(os.path.join(os.path.dirname(os.path.realpath(__file__)),'main.ui'))
+        self.ui = UiLoader().load(os.path.join(os.path.dirname(os.path.realpath(__file__)),'main.ui'))
         
         #setup shot treeview model
         self.shot_model = QStandardItemModel()
@@ -154,9 +188,15 @@ class RunViewer(object):
         self._thread.daemon = True
         self._thread.start()
         
-        # self.temp_load_shots()
-        # shot = Shot(r'C:\Users\Phil\Documents\Programming\labscript_suite\labscript\example.h5')
-        # self.load_shot(shot)
+        # start shots_to_process_queue monitoring thread
+        self._shots_to_process_thread = threading.Thread(target=self._process_shots)
+        self._shots_to_process_thread.daemon = True
+        self._shots_to_process_thread.start()
+        
+    def _process_shots(self):
+        while True:
+            filepath = shots_to_process_queue.get()
+            inmain_later(self.load_shot, filepath)
     
     def on_add_shot(self):
         dialog = QFileDialog(self.ui,"Select file to load", r'C:\Users\Phil\Documents\Programming\labscript_suite\labscript', "HDF5 files (*.h5 *.hdf5)")
@@ -173,8 +213,7 @@ class RunViewer(object):
                     # but you can hit enter and the file will be selected. 
                     # So we must check the extension of each file here!
                     if filepath.endswith('.h5') or filepath.endswith('.hdf5'):
-                        shot = Shot(filepath)
-                        self.load_shot(shot)
+                        self.load_shot(filepath)
                     else:
                         popup_warning = True
                 except:
@@ -222,14 +261,21 @@ class RunViewer(object):
             
             # get reference to the changed shot
             current_shot = self.shot_model.item(self.shot_model.indexFromItem(item).row(),SHOT_MODEL__CHECKBOX_INDEX).data()
+            if qt_type == 'PyQt4':
+                current_shot = current_shot.toPyObject()
             
             # find and update the pen of the plot items
             for channel in self.plot_items.keys():
                 for shot in self.plot_items[channel]:
                     if shot == current_shot:
-                        self.plot_items[channel][shot].setPen(pg.mkPen(QColor(item.data(Qt.UserRole)()), width=2))
+                        colour = item.data(Qt.UserRole)
+                        if qt_type == 'PyQt4':
+                            colour = colour.toPyObject()
+                        self.plot_items[channel][shot].setPen(pg.mkPen(QColor(colour()), width=2))
             
-    def load_shot(self, shot):
+    def load_shot(self, filepath):        
+        shot = Shot(filepath)
+    
         # add shot to shot list
         # Create Items
         items = []
@@ -260,7 +306,13 @@ class RunViewer(object):
             item = self.shot_model.item(i,SHOT_MODEL__CHECKBOX_INDEX)
             colour_item = self.shot_model.item(i,SHOT_MODEL__COLOUR_INDEX)
             if item.checkState() == Qt.Checked:
-                ticked_shots[item.data()] = colour_item.data(Qt.UserRole)()
+                shot = item.data()
+                colour_item_data = colour_item.data(Qt.UserRole)
+                if qt_type == 'PyQt4':
+                    colour_item_data = colour_item_data.toPyObject()
+                    shot = shot.toPyObject()
+                    
+                ticked_shots[shot] = colour_item_data()
         return ticked_shots
     
     def update_channels_treeview(self):
@@ -279,12 +331,12 @@ class RunViewer(object):
         for i in range(self.channel_model.rowCount()):
             item = self.channel_model.item(i,CHANNEL_MODEL__CHECKBOX_INDEX)
             # Sanity check
-            if item.text() in treeview_channels_dict:
+            if unicode(item.text()) in treeview_channels_dict:
                 raise RuntimeError("A duplicate channel name was detected in the treeview due to an internal error. Please lodge a bugreport detailing how the channels with the same name appeared in the channel treeview. Please restart the application")
                 
-            treeview_channels_dict[item.text()] = i
+            treeview_channels_dict[unicode(item.text())] = i
             if not item.isEnabled():
-                deactivated_treeview_channels_dict[item.text()] = i
+                deactivated_treeview_channels_dict[unicode(item.text())] = i
         treeview_channels = set(treeview_channels_dict.keys())
         deactivated_treeview_channels = set(deactivated_treeview_channels_dict.keys()) 
         
@@ -347,7 +399,7 @@ class RunViewer(object):
         # Update plots
         for i in range(self.channel_model.rowCount()):
             check_item = self.channel_model.item(i,CHANNEL_MODEL__CHECKBOX_INDEX)
-            channel = check_item.text()
+            channel = unicode(check_item.text())
             if check_item.checkState() == Qt.Checked and check_item.isEnabled():
                 # we want to show this plot
                 # does a plot already exist? If yes, show it
@@ -601,6 +653,7 @@ class RunViewer(object):
         return y_out
     
     def _resample_thread(self):
+        logger = logging.getLogger('runviewer.resample_thread')
         while True:
             if self._resample:
                 self._resample = False
@@ -621,12 +674,16 @@ class RunViewer(object):
                             except Exception:
                                 #self._resample = True
                                 pass
+                        else:
+                            logger.info('ignoring channel %s'%channel)
             time.sleep(0.5)
     
     @inmain_decorator(wait_for_return=True)
     def channel_checked_and_enabled(self, channel):
+        logger.info('is channel %s enabled'%channel)
         index = self.channel_model.index(0, CHANNEL_MODEL__CHANNEL_INDEX)
         indexes = self.channel_model.match(index, Qt.DisplayRole, channel, 1, Qt.MatchExactly)
+        logger.info('number of matches %d'%len(indexes))
         if len(indexes) == 1:
             check_item = self.channel_model.itemFromIndex(indexes[0])
             if check_item.checkState() == Qt.Checked and check_item.isEnabled():
@@ -639,11 +696,6 @@ class RunViewer(object):
     def on_y_axes_reset(self):
         for plot_widget in self.plot_widgets.values():
             plot_widget.enableAutoRange(axis=pg.ViewBox.YAxis)
-           
-    def temp_load_shots(self):
-        for i in range(10):
-            shot = TempShot(i)
-            self.load_shot(shot)
     
     def _enable_selected_shots(self):
         self.update_ticks_of_selected_shots(Qt.Checked)
@@ -757,7 +809,7 @@ class RunViewer(object):
         # add all widgets
         for i in range(self.channel_model.rowCount()):
             check_item = self.channel_model.item(i,CHANNEL_MODEL__CHECKBOX_INDEX)
-            channel = check_item.text()
+            channel = unicode(check_item.text())
             if channel in self.plot_widgets:
                 self.ui.plot_layout.addWidget(self.plot_widgets[channel])
                 if check_item.checkState() == Qt.Checked and check_item.isEnabled():
@@ -807,6 +859,7 @@ class Shot(object):
         self._load_device(master_pseudoclock_device)
     
     def add_trace(self, name, trace, parent_device_name, connection):
+        name = unicode(name)
         self._channels[name] = {'device_name':parent_device_name, 'port':connection}
         self._traces[name] = trace
     
@@ -877,9 +930,43 @@ class TempShot(Shot):
     def get_traces(self):
         return self.traces
         
-    
+
+class RunviewerServer(ZMQServer):
+    def __init__(self, *args, **kwargs):
+        ZMQServer.__init__(self, *args, **kwargs)
+        self.logger = logging.getLogger('runviewer.server')
+
+    def handler(self, h5_filepath):
+        if h5_filepath == 'hello':
+            return 'hello'
+            
+        self.logger.info('Received hdf5 file: %s'%h5_filepath)
+        # Convert path to local slashes and shared drive prefix:
+        h5_filepath = labscript_utils.shared_drive.path_to_local(h5_filepath)
+        logger.info('local filepath: %s'%h5_filepath)
+        # we add the shot to a queue so that we don't have to wait for the app to come up before 
+        # responding to runmanager
+        shots_to_process_queue.put(h5_filepath)
+        return 'ok'
+
+        
 if __name__ == "__main__":
     qapplication = QApplication(sys.argv)
+    
+    shots_to_process_queue = Queue()
+    
+    config_path = os.path.join(config_prefix,'%s.ini'%socket.gethostname())
+    exp_config = LabConfig(config_path,{'ports':['runviewer']})
+    
+    port = int(exp_config.get('ports','runviewer'))
+    myappid = 'monashbec.runviewer' # arbitrary string
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+    except:
+        logger.info('Not on a windows machine')
+    # Start experiment server
+    experiment_server = RunviewerServer(port)
+    
     app = RunViewer()
     
     def execute_program():
