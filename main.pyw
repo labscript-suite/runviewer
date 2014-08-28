@@ -380,12 +380,10 @@ class RunViewer(object):
                     self.create_plot(channel, ticked_shots)
                 self.plot_widgets[channel].hide()
                     
-        print 'done'
         self._resample = True
 
     def create_plot(self, channel, ticked_shots):
-        print channel
-        self.plot_widgets[channel] = pg.PlotWidget(name=channel)
+        self.plot_widgets[channel] = pg.PlotWidget()#name=channel)
         self.plot_widgets[channel].setMinimumHeight(200)
         self.plot_widgets[channel].setMaximumHeight(200)
         self.plot_widgets[channel].setLabel('bottom', 'Time', units='s')
