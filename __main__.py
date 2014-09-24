@@ -20,7 +20,35 @@ import ctypes
 import socket
 from Queue import Queue
 
+import signal
+# Quit on ctrl-c
+signal.signal(signal.SIGINT, signal.SIG_DFL)
+
 import labscript_utils.excepthook
+
+
+def check_version(module_name, at_least, less_than, version=None):
+
+    class VersionException(Exception):
+        pass
+
+    def get_version_tuple(version_string):
+        version_tuple = [int(v.replace('+', '-').split('-')[0]) for v in version_string.split('.')]
+        while len(version_tuple) < 3:
+            version_tuple += (0,)
+        return version_tuple
+
+    if version is None:
+        version = __import__(module_name).__version__
+    at_least_tuple, less_than_tuple, version_tuple = [get_version_tuple(v) for v in [at_least, less_than, version]]
+    if not at_least_tuple <= version_tuple < less_than_tuple:
+        raise VersionException(
+            '{module_name} {version} found. {at_least} <= {module_name} < {less_than} required.'.format(**locals()))
+
+check_version('labscript_utils', '1.1', '2')
+check_version('qtutils', '1.5.1', '2')
+check_version('zprocess', '1.1.2', '2')
+
 from labscript_utils.setup_logging import setup_logging
 logger = setup_logging('runviewer')
 labscript_utils.excepthook.set_logger(logger)
@@ -40,10 +68,12 @@ if 'pyside' in lower_argv:
 elif 'pyqt' in lower_argv:
     from PyQt4.QtCore import *
     from PyQt4.QtGui import *
+    from PyQt4.QtCore import pyqtSignal as Signal
 else:
     try:
         from PyQt4.QtCore import *
         from PyQt4.QtGui import *
+        from PyQt4.QtCore import pyqtSignal as Signal
     except Exception:
         from PySide.QtCore import *
         from PySide.QtGui import *
@@ -57,6 +87,7 @@ pg.setConfigOption('background', 'w')
 pg.setConfigOption('foreground', 'k')
 
 from qtutils import *
+import qtutils.icons
 from blacs.connections import ConnectionTable
 import labscript_devices
 
@@ -64,6 +95,18 @@ from labscript_utils.labconfig import LabConfig, config_prefix
 
 from resample import resample as _resample
 
+
+def set_win_appusermodel(window_id):
+    from labscript_utils.winshell import set_appusermodel, appids, app_descriptions
+    icon_path = os.path.abspath('runviewer.ico')
+    executable = sys.executable.lower()
+    if not executable.endswith('w.exe'):
+        executable = executable.replace('.exe', 'w.exe')
+    relaunch_command = executable + ' ' + os.path.abspath(__file__.replace('.pyc', '.py'))
+    relaunch_display_name = app_descriptions['runviewer']
+    set_appusermodel(window_id, appids['runviewer'], icon_path, relaunch_command, relaunch_display_name)
+    
+    
 SHOT_MODEL__COLOUR_INDEX = 0
 SHOT_MODEL__CHECKBOX_INDEX = 1
 SHOT_MODEL__PATH_INDEX = 1
@@ -134,9 +177,20 @@ class ColourDelegate(QItemDelegate):
         editor.setGeometry(option.rect);
 
         
+class RunviewerMainWindow(QMainWindow):
+    # A signal for when the window manager has created a new window for this widget:
+    newWindow = Signal(int)
+
+    def event(self, event):
+        result = QMainWindow.event(self, event)
+        if event.type() == QEvent.WinIdChange:
+            self.newWindow.emit(self.effectiveWinId())
+        return result
+
+        
 class RunViewer(object):
     def __init__(self):
-        self.ui = UiLoader().load(os.path.join(os.path.dirname(os.path.realpath(__file__)),'main.ui'))
+        self.ui = UiLoader().load(os.path.join(os.path.dirname(os.path.realpath(__file__)),'main.ui'), RunviewerMainWindow())
         
         #setup shot treeview model
         self.shot_model = QStandardItemModel()
@@ -173,7 +227,8 @@ class RunViewer(object):
         self.ui.enable_selected_shots.clicked.connect(self._enable_selected_shots)
         self.ui.disable_selected_shots.clicked.connect(self._disable_selected_shots)
         self.ui.add_shot.clicked.connect(self.on_add_shot)
-        
+        if os.name == 'nt':
+            self.ui.newWindow.connect(set_win_appusermodel)
         
         self.ui.show()
         
