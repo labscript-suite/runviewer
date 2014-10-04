@@ -11,7 +11,11 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>runviewer</string>
+   <string>runviewer - the labscript suite</string>
+  </property>
+  <property name="windowIcon">
+   <iconset resource="../../Anaconda/Lib/site-packages/qtutils/icons/icons.qrc">
+    <normaloff>:/qtutils/custom/runviewer.png</normaloff>:/qtutils/custom/runviewer.png</iconset>
   </property>
   <property name="tabShape">
    <enum>QTabWidget::Rounded</enum>
@@ -244,7 +248,7 @@ V</string>
         </layout>
        </widget>
       </widget>
-      <widget class="QWidget" name="">
+      <widget class="QWidget" name="layoutWidget">
        <layout class="QVBoxLayout" name="verticalLayout_2">
         <item>
          <layout class="QHBoxLayout" name="horizontalLayout_3">
@@ -293,8 +297,8 @@ V</string>
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>575</width>
-             <height>689</height>
+             <width>358</width>
+             <height>704</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_5">
@@ -340,10 +344,6 @@ V</string>
      </widget>
     </item>
    </layout>
-   <zorder>splitter</zorder>
-   <zorder>verticalLayoutWidget_3</zorder>
-   <zorder>scrollArea_2</zorder>
-   <zorder>horizontalLayoutWidget</zorder>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
@@ -351,7 +351,7 @@ V</string>
      <x>0</x>
      <y>0</y>
      <width>992</width>
-     <height>26</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -388,6 +388,8 @@ V</string>
    </property>
   </action>
  </widget>
- <resources/>
+ <resources>
+  <include location="../../Anaconda/Lib/site-packages/qtutils/icons/icons.qrc"/>
+ </resources>
  <connections/>
 </ui>

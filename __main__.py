@@ -15,26 +15,98 @@ import os
 import sys
 import time
 import threading
+import logging
+import ctypes
+import socket
+from Queue import Queue
 
+import signal
+# Quit on ctrl-c
+signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+import labscript_utils.excepthook
+
+
+def check_version(module_name, at_least, less_than, version=None):
+
+    class VersionException(Exception):
+        pass
+
+    def get_version_tuple(version_string):
+        version_tuple = [int(v.replace('+', '-').split('-')[0]) for v in version_string.split('.')]
+        while len(version_tuple) < 3:
+            version_tuple += (0,)
+        return version_tuple
+
+    if version is None:
+        version = __import__(module_name).__version__
+    at_least_tuple, less_than_tuple, version_tuple = [get_version_tuple(v) for v in [at_least, less_than, version]]
+    if not at_least_tuple <= version_tuple < less_than_tuple:
+        raise VersionException(
+            '{module_name} {version} found. {at_least} <= {module_name} < {less_than} required.'.format(**locals()))
+
+check_version('labscript_utils', '1.1', '2')
+check_version('qtutils', '1.5.2', '2')
+check_version('zprocess', '1.1.2', '2')
+
+from labscript_utils.setup_logging import setup_logging
+logger = setup_logging('runviewer')
+labscript_utils.excepthook.set_logger(logger)
+
+from zprocess import zmq_get, ZMQServer
 import zprocess.locking, labscript_utils.h5_lock, h5py
 zprocess.locking.set_client_process_name('runviewer')
-from PySide.QtCore import *
-from PySide.QtGui import *
-from PySide.QtUiTools import QUiLoader
+
+lower_argv = [s.lower() for s in sys.argv]
+qt_type = 'PyQt4'
+if 'pyside' in lower_argv:
+    # Import Qt
+    from PySide.QtCore import *
+    from PySide.QtGui import *
+    qt_type = 'PySide'
+    # from PySide.QtUiTools import QUiLoader
+elif 'pyqt' in lower_argv:
+    from PyQt4.QtCore import *
+    from PyQt4.QtGui import *
+    from PyQt4.QtCore import pyqtSignal as Signal
+else:
+    try:
+        from PyQt4.QtCore import *
+        from PyQt4.QtGui import *
+        from PyQt4.QtCore import pyqtSignal as Signal
+    except Exception:
+        from PySide.QtCore import *
+        from PySide.QtGui import *
+        qt_type = 'PySide'
+        
 import numpy
 
-# must be imported after PySide
+# must be imported after PySide/PyQt4
 import pyqtgraph as pg
 pg.setConfigOption('background', 'w')
 pg.setConfigOption('foreground', 'k')
 
-import labscript_utils.excepthook
 from qtutils import *
+import qtutils.icons
 from blacs.connections import ConnectionTable
 import labscript_devices
 
+from labscript_utils.labconfig import LabConfig, config_prefix
+
 from resample import resample as _resample
 
+
+def set_win_appusermodel(window_id):
+    from labscript_utils.winshell import set_appusermodel, appids, app_descriptions
+    icon_path = os.path.abspath('runviewer.ico')
+    executable = sys.executable.lower()
+    if not executable.endswith('w.exe'):
+        executable = executable.replace('.exe', 'w.exe')
+    relaunch_command = executable + ' ' + os.path.abspath(__file__.replace('.pyc', '.py'))
+    relaunch_display_name = app_descriptions['runviewer']
+    set_appusermodel(window_id, appids['runviewer'], icon_path, relaunch_command, relaunch_display_name)
+    
+    
 SHOT_MODEL__COLOUR_INDEX = 0
 SHOT_MODEL__CHECKBOX_INDEX = 1
 SHOT_MODEL__PATH_INDEX = 1
@@ -48,6 +120,7 @@ def int_to_enum(enum_list, value):
     for item in enum_list:
         if item == value:
             return item
+    return value
 
 class ColourDelegate(QItemDelegate):
 
@@ -81,6 +154,8 @@ class ColourDelegate(QItemDelegate):
     
     def setEditorData(self, editor, index):
         value = index.model().data(index, Qt.UserRole)
+        if qt_type == 'PyQt4':
+            value = value.toPyObject()
         for i in range(editor.count()):
             if editor.itemData(i) == value():
                 editor.setCurrentIndex(i)
@@ -89,6 +164,8 @@ class ColourDelegate(QItemDelegate):
     def setModelData(self, editor, model, index):
         icon = editor.itemIcon(editor.currentIndex())
         colour = editor.itemData(editor.currentIndex())
+        if qt_type == 'PyQt4':
+            colour = colour.toPyObject()
         
         # Note, all data being written to the model must be read out of the editor PRIOR to calling model.setData()
         #       This is because a call to model.setData() triggers setEditorData(), which messes up subsequent
@@ -100,9 +177,20 @@ class ColourDelegate(QItemDelegate):
         editor.setGeometry(option.rect);
 
         
+class RunviewerMainWindow(QMainWindow):
+    # A signal for when the window manager has created a new window for this widget:
+    newWindow = Signal(int)
+
+    def event(self, event):
+        result = QMainWindow.event(self, event)
+        if event.type() == QEvent.WinIdChange:
+            self.newWindow.emit(self.effectiveWinId())
+        return result
+
+        
 class RunViewer(object):
     def __init__(self):
-        self.ui = QUiLoader().load(os.path.join(os.path.dirname(os.path.realpath(__file__)),'main.ui'))
+        self.ui = UiLoader().load(os.path.join(os.path.dirname(os.path.realpath(__file__)),'main.ui'), RunviewerMainWindow())
         
         #setup shot treeview model
         self.shot_model = QStandardItemModel()
@@ -139,7 +227,8 @@ class RunViewer(object):
         self.ui.enable_selected_shots.clicked.connect(self._enable_selected_shots)
         self.ui.disable_selected_shots.clicked.connect(self._disable_selected_shots)
         self.ui.add_shot.clicked.connect(self.on_add_shot)
-        
+        if os.name == 'nt':
+            self.ui.newWindow.connect(set_win_appusermodel)
         
         self.ui.show()
         
@@ -154,9 +243,15 @@ class RunViewer(object):
         self._thread.daemon = True
         self._thread.start()
         
-        # self.temp_load_shots()
-        shot = Shot(r'C:\Users\Phil\Documents\Programming\labscript_suite\labscript\example.h5')
-        self.load_shot(shot)
+        # start shots_to_process_queue monitoring thread
+        self._shots_to_process_thread = threading.Thread(target=self._process_shots)
+        self._shots_to_process_thread.daemon = True
+        self._shots_to_process_thread.start()
+        
+    def _process_shots(self):
+        while True:
+            filepath = shots_to_process_queue.get()
+            inmain_later(self.load_shot, filepath)
     
     def on_add_shot(self):
         dialog = QFileDialog(self.ui,"Select file to load", r'C:\Users\Phil\Documents\Programming\labscript_suite\labscript', "HDF5 files (*.h5 *.hdf5)")
@@ -173,8 +268,7 @@ class RunViewer(object):
                     # but you can hit enter and the file will be selected. 
                     # So we must check the extension of each file here!
                     if filepath.endswith('.h5') or filepath.endswith('.hdf5'):
-                        shot = Shot(filepath)
-                        self.load_shot(shot)
+                        self.load_shot(filepath)
                     else:
                         popup_warning = True
                 except:
@@ -222,14 +316,21 @@ class RunViewer(object):
             
             # get reference to the changed shot
             current_shot = self.shot_model.item(self.shot_model.indexFromItem(item).row(),SHOT_MODEL__CHECKBOX_INDEX).data()
+            if qt_type == 'PyQt4':
+                current_shot = current_shot.toPyObject()
             
             # find and update the pen of the plot items
             for channel in self.plot_items.keys():
                 for shot in self.plot_items[channel]:
                     if shot == current_shot:
-                        self.plot_items[channel][shot].setPen(pg.mkPen(QColor(item.data(Qt.UserRole)()), width=2))
+                        colour = item.data(Qt.UserRole)
+                        if qt_type == 'PyQt4':
+                            colour = colour.toPyObject()
+                        self.plot_items[channel][shot].setPen(pg.mkPen(QColor(colour()), width=2))
             
-    def load_shot(self, shot):
+    def load_shot(self, filepath):        
+        shot = Shot(filepath)
+    
         # add shot to shot list
         # Create Items
         items = []
@@ -260,7 +361,13 @@ class RunViewer(object):
             item = self.shot_model.item(i,SHOT_MODEL__CHECKBOX_INDEX)
             colour_item = self.shot_model.item(i,SHOT_MODEL__COLOUR_INDEX)
             if item.checkState() == Qt.Checked:
-                ticked_shots[item.data()] = colour_item.data(Qt.UserRole)()
+                shot = item.data()
+                colour_item_data = colour_item.data(Qt.UserRole)
+                if qt_type == 'PyQt4':
+                    colour_item_data = colour_item_data.toPyObject()
+                    shot = shot.toPyObject()
+                    
+                ticked_shots[shot] = colour_item_data()
         return ticked_shots
     
     def update_channels_treeview(self):
@@ -279,12 +386,12 @@ class RunViewer(object):
         for i in range(self.channel_model.rowCount()):
             item = self.channel_model.item(i,CHANNEL_MODEL__CHECKBOX_INDEX)
             # Sanity check
-            if item.text() in treeview_channels_dict:
+            if unicode(item.text()) in treeview_channels_dict:
                 raise RuntimeError("A duplicate channel name was detected in the treeview due to an internal error. Please lodge a bugreport detailing how the channels with the same name appeared in the channel treeview. Please restart the application")
                 
-            treeview_channels_dict[item.text()] = i
+            treeview_channels_dict[unicode(item.text())] = i
             if not item.isEnabled():
-                deactivated_treeview_channels_dict[item.text()] = i
+                deactivated_treeview_channels_dict[unicode(item.text())] = i
         treeview_channels = set(treeview_channels_dict.keys())
         deactivated_treeview_channels = set(deactivated_treeview_channels_dict.keys()) 
         
@@ -295,7 +402,7 @@ class RunViewer(object):
             check_item = QStandardItem(channel)
             check_item.setEditable(False)
             check_item.setCheckable(True)
-            check_item.setCheckState(Qt.Checked)
+            check_item.setCheckState(Qt.Unchecked)
             items.append(check_item)
             # channel_name_item = QStandardItem(channel)
             # channel_name_item.setEditable(False)
@@ -347,7 +454,7 @@ class RunViewer(object):
         # Update plots
         for i in range(self.channel_model.rowCount()):
             check_item = self.channel_model.item(i,CHANNEL_MODEL__CHECKBOX_INDEX)
-            channel = check_item.text()
+            channel = unicode(check_item.text())
             if check_item.checkState() == Qt.Checked and check_item.isEnabled():
                 # we want to show this plot
                 # does a plot already exist? If yes, show it
@@ -373,30 +480,44 @@ class RunViewer(object):
                     
                 # If no, create one
                 else:
-                    self.plot_widgets[channel] = pg.PlotWidget(name=channel)
-                    self.plot_widgets[channel].setMinimumHeight(200)
-                    self.plot_widgets[channel].setMaximumHeight(200)
-                    self.plot_widgets[channel].setLabel('left', channel, units='V')
-                    self.plot_widgets[channel].setLabel('bottom', 'Time', units='s')
-                    self.plot_widgets[channel].showAxis('right', True)
-                    self.plot_widgets[channel].setXLink('runviewer - time axis link') 
-                    self.plot_widgets[channel].sigXRangeChanged.connect(self.on_x_range_changed)                     
-                    self.ui.plot_layout.addWidget(self.plot_widgets[channel])
-                    
-                    for shot, colour in ticked_shots.items():
-                        if channel in shot.traces:
-                            # plot_item = self.plot_widgets[channel].plot(shot.traces[channel][0], shot.traces[channel][1], pen=pg.mkPen(QColor(colour), width=2))
-                            # Add empty plot as it the custom resampling we do will happen quicker if we don't attempt to first plot all of the data
-                            plot_item = self.plot_widgets[channel].plot([],[], pen=pg.mkPen(QColor(colour), width=2), stepMode=True)
-                            self.plot_items.setdefault(channel, {})
-                            self.plot_items[channel][shot] = plot_item
+                    self.create_plot(channel, ticked_shots)
                 
             else:
-                if channel in self.plot_widgets:
-                    self.plot_widgets[channel].hide()
+                if channel not in self.plot_widgets:
+                    self.create_plot(channel, ticked_shots)
+                self.plot_widgets[channel].hide()
                     
         self._resample = True
 
+    def create_plot(self, channel, ticked_shots):
+        self.plot_widgets[channel] = pg.PlotWidget()#name=channel)
+        self.plot_widgets[channel].setMinimumHeight(200)
+        self.plot_widgets[channel].setMaximumHeight(200)
+        self.plot_widgets[channel].setLabel('bottom', 'Time', units='s')
+        self.plot_widgets[channel].showAxis('right', True)
+        self.plot_widgets[channel].setXLink('runviewer - time axis link') 
+        self.plot_widgets[channel].sigXRangeChanged.connect(self.on_x_range_changed)                     
+        self.ui.plot_layout.addWidget(self.plot_widgets[channel])
+        
+        has_units = False
+        units = ''
+        for shot, colour in ticked_shots.items():
+            if channel in shot.traces:
+                # plot_item = self.plot_widgets[channel].plot(shot.traces[channel][0], shot.traces[channel][1], pen=pg.mkPen(QColor(colour), width=2))
+                # Add empty plot as it the custom resampling we do will happen quicker if we don't attempt to first plot all of the data
+                plot_item = self.plot_widgets[channel].plot([],[], pen=pg.mkPen(QColor(colour), width=2), stepMode=True)
+                self.plot_items.setdefault(channel, {})
+                self.plot_items[channel][shot] = plot_item
+                
+                if len(shot.traces[channel]) == 3:
+                    has_units = True
+                    units = shot.traces[channel][2]
+        
+        if has_units:
+            self.plot_widgets[channel].setLabel('left', channel, units=units)
+        else:
+            self.plot_widgets[channel].setLabel('left', channel)
+        
     def on_x_range_changed(self, *args):
         # print 'x range changed'
         self._resample = True
@@ -587,35 +708,49 @@ class RunViewer(object):
         return y_out
     
     def _resample_thread(self):
+        logger = logging.getLogger('runviewer.resample_thread')
         while True:
             if self._resample:
                 self._resample = False
                 # print 'resampling'
                 ticked_shots = inmain(self.get_selected_shots_and_colours)
                 for shot, colour in ticked_shots.items():
-                    for channel in shot.traces:
-                        xmin, xmax, dx = self._get_resample_params(channel,shot)
-                        
-                        # We go a bit outside the visible range so that scrolling
-                        # doesn't immediately go off the edge of the data, and the
-                        # next resampling might have time to fill in more data before
-                        # the user sees any empty space.
-                        xnew, ynew = self.resample(shot.traces[channel][0], shot.traces[channel][1], xmin, xmax, shot.stop_time, dx)
-                        inmain(self.plot_items[channel][shot].setData, xnew, ynew, pen=pg.mkPen(QColor(colour), width=2), stepMode=True)
-                        
+                    for channel in shot.traces:                        
+                        if self.channel_checked_and_enabled(channel):
+                            try:
+                                xmin, xmax, dx = self._get_resample_params(channel,shot)
+                                
+                                # We go a bit outside the visible range so that scrolling
+                                # doesn't immediately go off the edge of the data, and the
+                                # next resampling might have time to fill in more data before
+                                # the user sees any empty space.
+                                xnew, ynew = self.resample(shot.traces[channel][0], shot.traces[channel][1], xmin, xmax, shot.stop_time, dx)
+                                inmain(self.plot_items[channel][shot].setData, xnew, ynew, pen=pg.mkPen(QColor(colour), width=2), stepMode=True)
+                            except Exception:
+                                #self._resample = True
+                                pass
+                        else:
+                            logger.info('ignoring channel %s'%channel)
             time.sleep(0.5)
-            
+    
+    @inmain_decorator(wait_for_return=True)
+    def channel_checked_and_enabled(self, channel):
+        logger.info('is channel %s enabled'%channel)
+        index = self.channel_model.index(0, CHANNEL_MODEL__CHANNEL_INDEX)
+        indexes = self.channel_model.match(index, Qt.DisplayRole, channel, 1, Qt.MatchExactly)
+        logger.info('number of matches %d'%len(indexes))
+        if len(indexes) == 1:
+            check_item = self.channel_model.itemFromIndex(indexes[0])
+            if check_item.checkState() == Qt.Checked and check_item.isEnabled():
+                return True
+        return False
+    
     def on_x_axis_reset(self):
         self._hidden_plot[0].enableAutoRange(axis=pg.ViewBox.XAxis)   
         
     def on_y_axes_reset(self):
         for plot_widget in self.plot_widgets.values():
             plot_widget.enableAutoRange(axis=pg.ViewBox.YAxis)
-           
-    def temp_load_shots(self):
-        for i in range(10):
-            shot = TempShot(i)
-            self.load_shot(shot)
     
     def _enable_selected_shots(self):
         self.update_ticks_of_selected_shots(Qt.Checked)
@@ -729,7 +864,7 @@ class RunViewer(object):
         # add all widgets
         for i in range(self.channel_model.rowCount()):
             check_item = self.channel_model.item(i,CHANNEL_MODEL__CHECKBOX_INDEX)
-            channel = check_item.text()
+            channel = unicode(check_item.text())
             if channel in self.plot_widgets:
                 self.ui.plot_layout.addWidget(self.plot_widgets[channel])
                 if check_item.checkState() == Qt.Checked and check_item.isEnabled():
@@ -777,62 +912,37 @@ class Shot(object):
         master_pseudoclock_device = self.connection_table.find_by_name(self.master_pseudoclock_name)   
         
         self._load_device(master_pseudoclock_device)
-            
+    
+    def add_trace(self, name, trace, parent_device_name, connection):
+        name = unicode(name)
+        self._channels[name] = {'device_name':parent_device_name, 'port':connection}
+        self._traces[name] = trace
+    
     def _load_device(self, device, clock=None):
         try:
             print 'loading %s'%device.name
             module = device.device_class
             # Load the master pseudoclock class
-            labscript_devices.import_device(module)
-            device_class = labscript_devices.get_runviewer_class(module)
-            device_instance = device_class(self.path, device.name)
-            traces = device_instance.get_traces(clock)
+            # labscript_devices.import_device(module)
+            device_class = labscript_devices.get_runviewer_parser(module)
+            device_instance = device_class(self.path, device)
+            clocklines_and_triggers = device_instance.get_traces(self.add_trace, clock)
 
-            # walk through all of the children of the master pseudoclock
-            self._walk_children(device, traces)
+            for name, trace in clocklines_and_triggers.items():
+                child_device = self.connection_table.find_by_name(name)
+                for grandchild_device_name, grandchild_device in child_device.child_list.items():
+                    self._load_device(grandchild_device, trace)
+            
         except Exception:
             #TODO: print/log exception traceback
-            # if device.name == 'ni_card_0' or device.name == 'pulseblaster_0' or device.name == 'pineblaster_0' or device.name == 'ni_card_1':
+            # if device.name == 'ni_card_0' or device.name == 'pulseblaster_0' or device.name == 'pineblaster_0' or device.name == 'ni_card_1' or device.name == 'novatechdds9m_0':
                 # raise
+            # raise
             if hasattr(device, 'name'):
                 print 'Failed to load device %s'%device.name
             else:
                 print 'Failed to load device (unknown name, device object does not have attribute name)'
-        
-    def _walk_children(self, device, device_traces):
-        # iterate over all the children of this device
-        for child_name, child in device.child_list.items():
-            # if this child is a device, load the device!
-            if child_name in self.device_names:
-                if child.parent_port in device_traces:
-                    self._load_device(child, device_traces[child.parent_port])
-                else:
-                    print 'Failed to load device %s'%child_name
-            # This item is not a device, and if it has children and is not of class Trigger, it is probably something
-            # like a DDS for which we want to show traces of the grandchildren only
-            elif child.child_list and child.device_class != 'Trigger':
-                for grandchild_name, grandchild in child.child_list.items():
-                    port = '%s_%s'%(child.parent_port, grandchild.parent_port)
-                    if port in device_traces:
-                        self._channels[grandchild_name] = {'device_name':device.name, 'port':port}
-                        self._traces[grandchild_name] = device_traces[self._channels[grandchild_name]['port']]
-            # else it has no children, or is a device Trigger
-            else:
-                # if it is a trigger, loop over all children and load those devices
-                if child.device_class == 'Trigger':
-                    for grandchild_name, grandchild in child.child_list.items():
-                        if grandchild_name in self.device_names:
-                            if child.parent_port in device_traces:
-                                self._load_device(grandchild, device_traces[child.parent_port])
-                            else:
-                                print 'Failed to load device %s'%child_name
-                        
-                port = '%s'%(child.parent_port)
-                if port in device_traces:
-                    self._channels[child_name] = {'device_name':device.name, 'port':port}
-                    self._traces[child_name] = device_traces[self._channels[child_name]['port']]
-        
-        
+    
     @property
     def channels(self):
         if self._channels is None:
@@ -875,9 +985,43 @@ class TempShot(Shot):
     def get_traces(self):
         return self.traces
         
-    
+
+class RunviewerServer(ZMQServer):
+    def __init__(self, *args, **kwargs):
+        ZMQServer.__init__(self, *args, **kwargs)
+        self.logger = logging.getLogger('runviewer.server')
+
+    def handler(self, h5_filepath):
+        if h5_filepath == 'hello':
+            return 'hello'
+            
+        self.logger.info('Received hdf5 file: %s'%h5_filepath)
+        # Convert path to local slashes and shared drive prefix:
+        h5_filepath = labscript_utils.shared_drive.path_to_local(h5_filepath)
+        logger.info('local filepath: %s'%h5_filepath)
+        # we add the shot to a queue so that we don't have to wait for the app to come up before 
+        # responding to runmanager
+        shots_to_process_queue.put(h5_filepath)
+        return 'ok'
+
+        
 if __name__ == "__main__":
     qapplication = QApplication(sys.argv)
+    
+    shots_to_process_queue = Queue()
+    
+    config_path = os.path.join(config_prefix,'%s.ini'%socket.gethostname())
+    exp_config = LabConfig(config_path,{'ports':['runviewer']})
+    
+    port = int(exp_config.get('ports','runviewer'))
+    myappid = 'monashbec.runviewer' # arbitrary string
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+    except:
+        logger.info('Not on a windows machine')
+    # Start experiment server
+    experiment_server = RunviewerServer(port)
+    
     app = RunViewer()
     
     def execute_program():
