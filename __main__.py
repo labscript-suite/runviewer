@@ -26,6 +26,9 @@ signal.signal(signal.SIGINT, signal.SIG_DFL)
 
 import labscript_utils.excepthook
 
+# Set working directory to runviewer folder, resolving symlinks
+runviewer_dir = os.path.dirname(os.path.realpath(__file__))
+os.chdir(runviewer_dir)
 
 def check_version(module_name, at_least, less_than, version=None):
 

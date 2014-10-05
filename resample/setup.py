@@ -6,12 +6,9 @@
 
 from distutils.core import setup, Extension
 import numpy
-import os
-import platform
 
 setup(
     ext_modules = [
         Extension("resample",sources=["resample.c"], include_dirs = [numpy.get_include()])
         ]
     )
-    
