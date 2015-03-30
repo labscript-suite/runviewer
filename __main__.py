@@ -38,6 +38,7 @@ except ImportError:
 check_version('labscript_utils', '2.0', '3')
 check_version('qtutils', '1.5.2', '2')
 check_version('zprocess', '1.1.2', '2')
+check_version('pyqtgraph', '0.9.10', '1')
 
 from labscript_utils.setup_logging import setup_logging
 logger = setup_logging('runviewer')
@@ -465,7 +466,7 @@ class RunViewer(object):
                         if shot not in self.plot_items[channel]:
                             # plot_item = self.plot_widgets[channel].plot(shot.traces[channel][0], shot.traces[channel][1], pen=pg.mkPen(QColor(colour), width=2))
                             # Add empty plot as it the custom resampling we do will happen quicker if we don't attempt to first plot all of the data
-                            plot_item = self.plot_widgets[channel].plot([],[], pen=pg.mkPen(QColor(colour), width=2), stepMode=True) 
+                            plot_item = self.plot_widgets[channel].plot([0,0],[0], pen=pg.mkPen(QColor(colour), width=2), stepMode=True) 
                             self.plot_items[channel][shot] = plot_item
                     
                 # If no, create one
@@ -495,7 +496,7 @@ class RunViewer(object):
             if channel in shot.traces:
                 # plot_item = self.plot_widgets[channel].plot(shot.traces[channel][0], shot.traces[channel][1], pen=pg.mkPen(QColor(colour), width=2))
                 # Add empty plot as it the custom resampling we do will happen quicker if we don't attempt to first plot all of the data
-                plot_item = self.plot_widgets[channel].plot([],[], pen=pg.mkPen(QColor(colour), width=2), stepMode=True)
+                plot_item = self.plot_widgets[channel].plot([0,0],[0], pen=pg.mkPen(QColor(colour), width=2), stepMode=True)
                 self.plot_items.setdefault(channel, {})
                 self.plot_items[channel][shot] = plot_item
                 
@@ -530,25 +531,42 @@ class RunViewer(object):
         of interpolation."""
         #TODO: Only finely sample the currently visible region. Coarsely sample the rest
         # x_out = numpy.float32(numpy.linspace(data_x[0], data_x[-1], 4000*(data_x[-1]-data_x[0])/(xmax-xmin)))
-        x_out = numpy.float64(numpy.linspace(xmin, xmax, 3*2000+1))
-        y_out = numpy.empty(len(x_out), dtype=numpy.float64)
+        x_out = numpy.float64(numpy.linspace(xmin, xmax, 3*2000+2))
+        y_out = numpy.empty(len(x_out)-1, dtype=numpy.float64)
         data_x = numpy.float64(data_x)
         data_y = numpy.float64(data_y)
         
+        # TODO: investigate only resampling when necessary. 
+        #       Currently pyqtgraph sometimes has trouble rendering things 
+        #       if you don't resample. If a point is far off the graph, 
+        #       and this point is the first that should be drawn for stepMode,
+        #       because there is a long gap before the next point (which is
+        #       visible) then there is a problem.
+        #       Also need to explicitly handle cases where none of the data 
+        #       is visible (which resampling does by setting NaNs)
+        #
+        # x_data_slice = data_x[(data_x>=xmin)&(data_x<=xmax)]
+        # print len(data_x)
+        # if len(x_data_slice) < 3*2000+2:
+            # x_out = x_data_slice
+            # y_out = data_y[(data_x>=xmin)&(data_x<=xmax)][:-1]
+            # logger.info('skipping resampling')
+        # else:        
         resampling = True
+        
         if resampling:
-            _resample(data_x, data_y, x_out, y_out, numpy.float64(stop_time))
-            # y_out = self.__resample4(data_x, data_y, x_out,numpy.float32(stop_time))
+            # _resample(data_x, data_y, x_out, y_out, numpy.float64(stop_time))
+            self.__resample4(data_x, data_y, x_out, y_out, numpy.float32(stop_time))
         else:
             x_out, y_out = data_x, data_y
             
         return x_out, y_out
     
-    def __resample4(self, x_in, y_in, x_out, stop_time):
+    def __resample4(self, x_in, y_in, x_out, y_out, stop_time):
         #we want x-out to have three times the number of points as there are pixels
         # Plus one at the end
-        y_out = numpy.empty(len(x_out))
-        print 'len x_out: %d'%len(x_out)
+        # y_out = numpy.empty(len(x_out)-1, dtype=numpy.float64)
+        # print 'len x_out: %d'%len(x_out)
         
         # A couple of special cases that I don't want to have to put extra checks in for:
         if x_out[-1] < x_in[0] or x_out[0] > stop_time:
@@ -557,7 +575,7 @@ class RunViewer(object):
         elif x_out[0] > x_in[-1]:
             # We're after the final clock tick, but before stop_time
             i = 0
-            while i < len(x_out):
+            while i < len(x_out)-1:
                 if x_out[i] < stop_time:
                     y_out[i] = y_in[-1]
                 else:
@@ -584,7 +602,7 @@ class RunViewer(object):
             
             
             # Get values until we get to the end of the data:
-            while j < len(x_in) and i < len(x_out)-1: # Leave one spare for the final data point
+            while j < len(x_in) and i < len(x_out)-2: # Leave one spare for the final data point and one because stepMode=True requires len(y)=len(x)-1
                 # This is 'nearest neighbour on the left' interpolation. It's
                 # what we want if none of the source values checked in the
                 # upcoming loop are used:
@@ -595,7 +613,7 @@ class RunViewer(object):
                 negative_jump_value = 0
                 negative_jump_index = j-1
                 # now find the max and min values between this x_out time point and the next x_out timepoint
-                print i
+                # print i
                 while j < len(x_in) and x_in[j] < x_out[i]:
                     jump = y_in[j] - y_out[i-2]
                     # would using this source value cause a bigger positive jump?
@@ -621,6 +639,13 @@ class RunViewer(object):
                 
             # Get the last datapoint:
             if j < len(x_in):
+                # If the sample rate of the raw data is low, then the current
+                # j point could be outside the current plot view range
+                # If so, decrease j so that we take a value that is within the 
+                # plot view range.
+                if x_in[j] > x_out[-1] and j > 0:
+                    j -= 1
+            
                 y_out[i] = y_in[j]
                 i += 1
             # if i < len(x_out):
@@ -628,13 +653,13 @@ class RunViewer(object):
                 # i += 1
             # Fill the remainder of the array with the last datapoint,
             # if t < stop_time, and then NaNs after that:
-            while i < len(x_out):
+            while i < len(x_out)-1:
                 if x_out[i] < stop_time:
                     y_out[i] = y_in[-1]
                 else:
                     y_out[i] = numpy.float('NaN')
                 i += 1
-        return y_out
+        # return y_out # method changed to modify y_out array in place
     
     def __resample3(self,x_in,y_in,x_out, stop_time):
         """This is a Python implementation of the C extension. For

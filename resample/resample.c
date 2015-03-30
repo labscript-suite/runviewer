@@ -78,7 +78,7 @@ resample(PyObject *dummy, PyObject *args)
     }
     else if(x_out_data[0] > x_in_data[n_in-1]){
         // We're after the final clock tick, but before stop_time
-        while(i < n_out){
+        while(i < n_out-1){
             if(x_out_data[i] < stop_time){
                 y_out_data[i] = y_in_data[n_in-1];
             }
@@ -105,7 +105,7 @@ resample(PyObject *dummy, PyObject *args)
         //y_out_data[i] = y_in_data[j-1];
         //i++;
         // Get values until we get to the end of the data:
-        while((j < n_in) && (i < n_out-1)){
+        while((j < n_in) && (i < n_out-2)){
             // This is 'nearest neighbour on the left' interpolation. It's
             // what we want if none of the source values checked in the
             // upcoming loop are used:
@@ -147,12 +147,19 @@ resample(PyObject *dummy, PyObject *args)
         }
         // Get the last datapoint, if we got that far:
         if(j < n_in){
+            // If the sample rate of the raw data is low, then the current
+            // j point could be outside the current plot view range
+            // If so, decrease j so that we take a value that is within the 
+            // plot view range.
+            if(x_in_data[j] > x_out_data[n_out-1] && j > 0){
+                j--;
+            }
             y_out_data[i] = y_in_data[j];
             i++;
         }
         // Fill the remainder of the array with the last datapoint,
         // if t < stop_time, and then NaNs after that:
-        while(i < n_out){
+        while(i < n_out-1){
             if(x_out_data[i] < stop_time){
                 y_out_data[i] = y_in_data[n_in-1];
             }
