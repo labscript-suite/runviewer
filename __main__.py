@@ -559,8 +559,8 @@ class RunViewer(object):
         resampling = True
         
         if resampling:
-            # _resample(data_x, data_y, x_out, y_out, numpy.float64(stop_time))
-            self.__resample4(data_x, data_y, x_out, y_out, numpy.float32(stop_time))
+            _resample(data_x, data_y, x_out, y_out, numpy.float64(stop_time))
+            # self.__resample4(data_x, data_y, x_out, y_out, numpy.float32(stop_time))
         else:
             x_out, y_out = data_x, data_y
             

@@ -71,7 +71,7 @@ resample(PyObject *dummy, PyObject *args)
     // A couple of special cases that I don't want to have to put extra checks in for:
     if(x_out_data[n_out - 1] < x_in_data[0] || x_out_data[0] > stop_time){
         // We're all the way to the left of the data or all the way to the right. Fill with NaNs:
-        while(i < n_out){
+        while(i < n_out-1){
             y_out_data[i] = 0.0/0.0;
             i++;
         }
