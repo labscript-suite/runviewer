@@ -38,7 +38,6 @@ except ImportError:
 check_version('labscript_utils', '2.0', '3')
 check_version('qtutils', '1.5.2', '2')
 check_version('zprocess', '1.1.2', '2')
-check_version('pyqtgraph', '0.9.10', '1')
 
 from labscript_utils.setup_logging import setup_logging
 logger = setup_logging('runviewer')
@@ -47,6 +46,11 @@ labscript_utils.excepthook.set_logger(logger)
 from zprocess import zmq_get, ZMQServer
 import zprocess.locking, labscript_utils.h5_lock, h5py
 zprocess.locking.set_client_process_name('runviewer')
+
+# This must be bumped until after the h5_lock import
+# This is because the check imports pyqtgraph, which imports h5py
+# h5py must be imported after h5_lock, thus we do the check here
+check_version('pyqtgraph', '0.9.10', '1')
 
 lower_argv = [s.lower() for s in sys.argv]
 qt_type = 'PyQt4'
