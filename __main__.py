@@ -321,7 +321,7 @@ class RunViewer(object):
                         colour = item.data(Qt.UserRole)
                         if qt_type == 'PyQt4':
                             colour = colour.toPyObject()
-                        self.plot_items[channel][shot].setPen(pg.mkPen(QColor(colour()), width=2))
+                        self.plot_items[channel][shot].setPen(pg.mkPen(QColor(colour), width=2))
             
     def load_shot(self, filepath):        
         shot = Shot(filepath)
