@@ -191,6 +191,7 @@ class RunViewer(object):
         self.shot_model = QStandardItemModel()
         self.shot_model.setHorizontalHeaderLabels(['colour','path'])
         self.ui.shot_treeview.setModel(self.shot_model)
+        self.ui.shot_treeview.resizeColumnToContents(0)
         self.shot_model.itemChanged.connect(self.on_shot_selection_changed)
         self.shot_colour_delegate = ColourDelegate(self.ui.shot_treeview)
         self.ui.shot_treeview.setItemDelegateForColumn(0, self.shot_colour_delegate)
@@ -366,6 +367,7 @@ class RunViewer(object):
         check_item.setCheckable(True)
         check_item.setCheckState(Qt.Unchecked) # options are Qt.Checked OR Qt.Unchecked        
         check_item.setData(shot)
+        check_item.setToolTip(filepath)
         items.append(check_item)
         # script name
         # path_item = QStandardItem(shot.path)
