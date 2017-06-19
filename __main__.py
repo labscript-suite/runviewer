@@ -212,6 +212,28 @@ class RunViewer(object):
         self._hidden_plot = (hidden_plot, hidden_plot_item)
         self.ui.plot_layout.addWidget(hidden_plot)
         
+        # add some icons
+        self.ui.add_shot.setIcon(QIcon(':/qtutils/fugue/plus'))
+        self.ui.delete_shot.setIcon(QIcon(':/qtutils/fugue/cross'))
+        self.ui.enable_selected_shots.setIcon(QIcon(':/qtutils/fugue/ui-check-box'))
+        self.ui.disable_selected_shots.setIcon(QIcon(':/qtutils/fugue/ui-check-box-uncheck'))
+        self.ui.group_channel.setIcon(QIcon(':/qtutils/fugue/layers-group'))
+        self.ui.delete_group.setIcon(QIcon(':/qtutils/fugue/layers-ungroup'))
+        self.ui.channel_move_to_top.setIcon(QIcon(':/qtutils/fugue/arrow-stop-090'))
+        self.ui.channel_move_up.setIcon(QIcon(':/qtutils/fugue/arrow-090'))
+        self.ui.channel_move_down.setIcon(QIcon(':/qtutils/fugue/arrow-270'))
+        self.ui.channel_move_to_bottom.setIcon(QIcon(':/qtutils/fugue/arrow-stop-270'))
+        self.ui.reset_x_axis.setIcon(QIcon(':/qtutils/fugue/clock-history'))
+        self.ui.reset_y_axis.setIcon(QIcon(':/qtutils/fugue/magnifier-history'))
+        
+        self.ui.actionOpen_Shot.setIcon(QIcon(':/qtutils/fugue/plus'))
+        self.ui.actionQuit.setIcon(QIcon(':/qtutils/fugue/cross-button'))
+        
+        # disable buttons that are not yet implemented to help avoid confusion!
+        self.ui.delete_shot.setEnabled(False)
+        self.ui.group_channel.setEnabled(False)
+        self.ui.delete_group.setEnabled(False)
+        
         # connect signals
         self.ui.reset_x_axis.clicked.connect(self.on_x_axis_reset)
         self.ui.reset_y_axis.clicked.connect(self.on_y_axes_reset)
@@ -222,8 +244,13 @@ class RunViewer(object):
         self.ui.enable_selected_shots.clicked.connect(self._enable_selected_shots)
         self.ui.disable_selected_shots.clicked.connect(self._disable_selected_shots)
         self.ui.add_shot.clicked.connect(self.on_add_shot)
+        
+        self.ui.actionOpen_Shot.triggered.connect(self.on_add_shot)
+        self.ui.actionQuit.triggered.connect(self.ui.close)
+        
         if os.name == 'nt':
             self.ui.newWindow.connect(set_win_appusermodel)
+        
         
         self.ui.show()
         
