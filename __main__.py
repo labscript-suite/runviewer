@@ -112,10 +112,10 @@ CHANNEL_MODEL__CHANNEL_INDEX = 0
 
 
 def int_to_enum(enum_list, value):
-"""stupid hack to work around the fact that PySide screws with the type of a variable when it goes into a model. Enums are converted to ints, which then
- can't be interpreted by QColor correctly (for example)
- unfortunately Qt doesn't provide a python list structure of enums, so you have to build the list yourself.
-"""
+    """stupid hack to work around the fact that PySide screws with the type of a variable when it goes into a model. Enums are converted to ints, which then
+     can't be interpreted by QColor correctly (for example)
+     unfortunately Qt doesn't provide a python list structure of enums, so you have to build the list yourself.
+    """
 
     for item in enum_list:
         if item == value:
