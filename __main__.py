@@ -249,33 +249,29 @@ class RunViewer(object):
             inmain_later(self.load_shot, filepath)
     
     def on_add_shot(self):
-        dialog = QFileDialog(self.ui,"Select file to load", r'C:\Users\Phil\Documents\Programming\labscript_suite\labscript', "HDF5 files (*.h5 *.hdf5)")
-        dialog.setViewMode(QFileDialog.Detail)
-        dialog.setFileMode(QFileDialog.ExistingFile)
-        if dialog.exec_():
-            selected_files = dialog.selectedFiles()
-            popup_warning = False
-            for file in selected_files:
-                try:
-                    filepath = str(file)
-                    # Qt has this weird behaviour where if you type in the name of a file that exists
-                    # but does not have the extension you have limited the dialog to, the OK button is greyed out
-                    # but you can hit enter and the file will be selected. 
-                    # So we must check the extension of each file here!
-                    if filepath.endswith('.h5') or filepath.endswith('.hdf5'):
-                        self.load_shot(filepath)
-                    else:
-                        popup_warning = True
-                except:
+        selected_files = QFileDialog.getOpenFileNames(self.ui, "Select file to load", "", "HDF5 files (*.h5 *.hdf5)")
+        popup_warning = False
+        for file in selected_files:
+            try:
+                filepath = str(file)
+                # Qt has this weird behaviour where if you type in the name of a file that exists
+                # but does not have the extension you have limited the dialog to, the OK button is greyed out
+                # but you can hit enter and the file will be selected.
+                # So we must check the extension of each file here!
+                if filepath.endswith('.h5') or filepath.endswith('.hdf5'):
+                    self.load_shot(filepath)
+                else:
                     popup_warning = True
-                    raise
-            if popup_warning:
-                message = QMessageBox()
-                message.setText("Warning: Some shots were not loaded because they were not valid hdf5 files")
-                message.setIcon(QMessageBox.Warning)
-                message.setWindowTitle("Runviewer")
-                message.setStandardButtons(QMessageBox.Ok)
-                message.exec_()
+            except:
+                popup_warning = True
+                raise
+        if popup_warning:
+            message = QMessageBox()
+            message.setText("Warning: Some shots were not loaded because they were not valid hdf5 files")
+            message.setIcon(QMessageBox.Warning)
+            message.setWindowTitle("Runviewer")
+            message.setStandardButtons(QMessageBox.Ok)
+            message.exec_()
                 
     
     def on_shot_selection_changed(self, item):
