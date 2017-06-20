@@ -221,7 +221,7 @@ class RunViewer(object):
 
         # add some icons
         self.ui.add_shot.setIcon(QIcon(':/qtutils/fugue/plus'))
-        self.ui.delete_shot.setIcon(QIcon(':/qtutils/fugue/cross'))
+        self.ui.delete_shot.setIcon(QIcon(':/qtutils/fugue/minus'))
         self.ui.enable_selected_shots.setIcon(QIcon(':/qtutils/fugue/ui-check-box'))
         self.ui.disable_selected_shots.setIcon(QIcon(':/qtutils/fugue/ui-check-box-uncheck'))
         self.ui.group_channel.setIcon(QIcon(':/qtutils/fugue/layers-group'))
