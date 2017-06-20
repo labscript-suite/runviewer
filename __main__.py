@@ -112,10 +112,10 @@ CHANNEL_MODEL__CHANNEL_INDEX = 0
 
 
 def int_to_enum(enum_list, value):
-"""stupid hack to work around the fact that PySide screws with the type of a variable when it goes into a model. Enums are converted to ints, which then
- can't be interpreted by QColor correctly (for example)
- unfortunately Qt doesn't provide a python list structure of enums, so you have to build the list yourself.
-"""
+    """stupid hack to work around the fact that PySide screws with the type of a variable when it goes into a model. Enums are converted to ints, which then
+     can't be interpreted by QColor correctly (for example)
+     unfortunately Qt doesn't provide a python list structure of enums, so you have to build the list yourself.
+    """
 
     for item in enum_list:
         if item == value:
@@ -190,13 +190,14 @@ class RunviewerMainWindow(QMainWindow):
 
 
 class RunViewer(object):
-    def __init__(self):
+    def __init__(self, exp_config):
         self.ui = UiLoader().load(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'main.ui'), RunviewerMainWindow())
 
         # setup shot treeview model
         self.shot_model = QStandardItemModel()
         self.shot_model.setHorizontalHeaderLabels(['colour', 'path'])
         self.ui.shot_treeview.setModel(self.shot_model)
+        self.ui.shot_treeview.resizeColumnToContents(0)
         self.shot_model.itemChanged.connect(self.on_shot_selection_changed)
         self.shot_colour_delegate = ColourDelegate(self.ui.shot_treeview)
         self.ui.shot_treeview.setItemDelegateForColumn(0, self.shot_colour_delegate)
@@ -218,6 +219,28 @@ class RunViewer(object):
         self._hidden_plot = (hidden_plot, hidden_plot_item)
         self.ui.plot_layout.addWidget(hidden_plot)
 
+        # add some icons
+        self.ui.add_shot.setIcon(QIcon(':/qtutils/fugue/plus'))
+        self.ui.delete_shot.setIcon(QIcon(':/qtutils/fugue/minus'))
+        self.ui.enable_selected_shots.setIcon(QIcon(':/qtutils/fugue/ui-check-box'))
+        self.ui.disable_selected_shots.setIcon(QIcon(':/qtutils/fugue/ui-check-box-uncheck'))
+        self.ui.group_channel.setIcon(QIcon(':/qtutils/fugue/layers-group'))
+        self.ui.delete_group.setIcon(QIcon(':/qtutils/fugue/layers-ungroup'))
+        self.ui.channel_move_to_top.setIcon(QIcon(':/qtutils/fugue/arrow-stop-090'))
+        self.ui.channel_move_up.setIcon(QIcon(':/qtutils/fugue/arrow-090'))
+        self.ui.channel_move_down.setIcon(QIcon(':/qtutils/fugue/arrow-270'))
+        self.ui.channel_move_to_bottom.setIcon(QIcon(':/qtutils/fugue/arrow-stop-270'))
+        self.ui.reset_x_axis.setIcon(QIcon(':/qtutils/fugue/clock-history'))
+        self.ui.reset_y_axis.setIcon(QIcon(':/qtutils/fugue/magnifier-history'))
+
+        self.ui.actionOpen_Shot.setIcon(QIcon(':/qtutils/fugue/plus'))
+        self.ui.actionQuit.setIcon(QIcon(':/qtutils/fugue/cross-button'))
+
+        # disable buttons that are not yet implemented to help avoid confusion!
+        self.ui.delete_shot.setEnabled(False)
+        self.ui.group_channel.setEnabled(False)
+        self.ui.delete_group.setEnabled(False)
+
         # connect signals
         self.ui.reset_x_axis.clicked.connect(self.on_x_axis_reset)
         self.ui.reset_y_axis.clicked.connect(self.on_y_axes_reset)
@@ -228,6 +251,10 @@ class RunViewer(object):
         self.ui.enable_selected_shots.clicked.connect(self._enable_selected_shots)
         self.ui.disable_selected_shots.clicked.connect(self._disable_selected_shots)
         self.ui.add_shot.clicked.connect(self.on_add_shot)
+
+        self.ui.actionOpen_Shot.triggered.connect(self.on_add_shot)
+        self.ui.actionQuit.triggered.connect(self.ui.close)
+
         if os.name == 'nt':
             self.ui.newWindow.connect(set_win_appusermodel)
 
@@ -237,6 +264,8 @@ class RunViewer(object):
         #self._channels_list = {}
         self.plot_widgets = {}
         self.plot_items = {}
+        
+        self.last_opened_shots_folder = exp_config.get('paths', 'experiment_shot_storage')
 
         # start resample thread
         self._resample = False
@@ -255,8 +284,12 @@ class RunViewer(object):
             inmain_later(self.load_shot, filepath)
 
     def on_add_shot(self):
-        selected_files = QFileDialog.getOpenFileNames(self.ui, "Select file to load", "", "HDF5 files (*.h5 *.hdf5)")
+        selected_files = QFileDialog.getOpenFileNames(self.ui, "Select file to load", self.last_opened_shots_folder, "HDF5 files (*.h5 *.hdf5)")
         popup_warning = False
+
+        # Convert to standard platform specific path, otherwise Qt likes forward slashes:
+        selected_files = [os.path.abspath(shot_file) for shot_file in selected_files]
+        self.last_opened_shots_folder = os.path.dirname(selected_files[0])
         for file in selected_files:
             try:
                 filepath = str(file)
@@ -288,18 +321,24 @@ class RunViewer(object):
             colour_item = self.shot_model.item(row, SHOT_MODEL__COLOUR_INDEX)
 
             if checked:
-                colour = self.shot_colour_delegate.get_next_colour()
+                colour = colour_item.data(Qt.UserRole)
+                if qt_type == 'PyQt4':
+                    colour = colour.toPyObject()
+                if colour is not None:
+                    colour = colour()
+                else:
+                    colour = self.shot_colour_delegate.get_next_colour()
+
                 colour_item.setEditable(True)
                 pixmap = QPixmap(20, 20)
                 pixmap.fill(colour)
                 icon = QIcon(pixmap)
+                colour_item.setData(lambda clist=self.shot_colour_delegate._colours, colour=colour: int_to_enum(clist, colour), Qt.UserRole)
+                colour_item.setData(icon, Qt.DecorationRole)
             else:
-                colour = None
-                icon = None
+                # colour = None
+                # icon = None
                 colour_item.setEditable(False)
-
-            colour_item.setData(icon, Qt.DecorationRole)
-            colour_item.setData(lambda clist=self.shot_colour_delegate._colours, colour=colour: int_to_enum(clist, colour), Qt.UserRole)
 
             # model.setData(index, editor.itemIcon(editor.currentIndex()),
             # model.setData(index, editor.itemData(editor.currentIndex()), Qt.UserRole)
@@ -320,7 +359,7 @@ class RunViewer(object):
                         colour = item.data(Qt.UserRole)
                         if qt_type == 'PyQt4':
                             colour = colour.toPyObject()
-                        self.plot_items[channel][shot].setPen(pg.mkPen(QColor(colour), width=2))
+                        self.plot_items[channel][shot].setPen(pg.mkPen(QColor(colour()), width=2))
 
     def load_shot(self, filepath):
         shot = Shot(filepath)
@@ -338,6 +377,7 @@ class RunViewer(object):
         check_item.setCheckable(True)
         check_item.setCheckState(Qt.Unchecked)  # options are Qt.Checked OR Qt.Unchecked
         check_item.setData(shot)
+        check_item.setToolTip(filepath)
         items.append(check_item)
         # script name
         # path_item = QStandardItem(shot.path)
@@ -1027,7 +1067,7 @@ if __name__ == "__main__":
     shots_to_process_queue = Queue()
 
     config_path = os.path.join(config_prefix, '%s.ini' % socket.gethostname())
-    exp_config = LabConfig(config_path, {'ports': ['runviewer']})
+    exp_config = LabConfig(config_path, {"DEFAULT": ["experiment_name"], "paths": ["shared_drive", "experiment_shot_storage"], 'ports': ['runviewer']})
 
     port = int(exp_config.get('ports', 'runviewer'))
     myappid = 'monashbec.runviewer'  # arbitrary string
@@ -1038,7 +1078,7 @@ if __name__ == "__main__":
     # Start experiment server
     experiment_server = RunviewerServer(port)
 
-    app = RunViewer()
+    app = RunViewer(exp_config)
 
     def execute_program():
         qapplication.exec_()

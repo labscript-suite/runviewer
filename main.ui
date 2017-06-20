@@ -14,8 +14,73 @@
    <string>runviewer - the labscript suite</string>
   </property>
   <property name="windowIcon">
-   <iconset resource="../../Anaconda/Lib/site-packages/qtutils/icons/icons.qrc">
+   <iconset>
     <normaloff>:/qtutils/custom/runviewer.png</normaloff>:/qtutils/custom/runviewer.png</iconset>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">QPushButton {
+     border: none;
+     padding: 4px;
+ }
+
+QPushButton:hover {
+     background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                       stop: 0 #f6f7fa, stop: 1 #dadbde);
+     border: 1px solid #8f8f91;
+     border-radius: 3px;
+ }
+
+ QPushButton:pressed {
+     background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                       stop: 0 #dadbde, stop: 1 #f6f7fa);
+     border: 1px solid #8f8f91;
+     border-radius: 3px;
+ }
+
+QPushButton:checked {
+     background-color: #dadbde;
+     border: 1px solid #8f8f91;
+     border-radius: 3px;
+ }
+
+QPushButton:hover:checked {
+     background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                       stop: 0 #dadbde, stop: 1 #f6f7fa);
+     border: 1px solid #8f8f91;
+     border-radius: 3px;
+ }
+
+QToolButton {
+     border: none;
+     padding: 2px;
+ }
+
+QToolButton:hover {
+     background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                       stop: 0 #f6f7fa, stop: 1 #dadbde);
+     border: 1px solid #8f8f91;
+     border-radius: 3px;
+ }
+
+ QToolButton:pressed {
+     background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                       stop: 0 #dadbde, stop: 1 #f6f7fa);
+     border: 1px solid #8f8f91;
+     border-radius: 3px;
+ }
+
+QToolButton:checked {
+     background-color: #dadbde;
+     border: 1px solid #8f8f91;
+     border-radius: 3px;
+ }
+
+QToolButton:hover:checked {
+     background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                       stop: 0 #dadbde, stop: 1 #f6f7fa);
+     border: 1px solid #8f8f91;
+     border-radius: 3px;
+ }</string>
   </property>
   <property name="tabShape">
    <enum>QTabWidget::Rounded</enum>
@@ -46,8 +111,11 @@
                <height>16777215</height>
               </size>
              </property>
+             <property name="toolTip">
+              <string>Add new shots</string>
+             </property>
              <property name="text">
-              <string>+</string>
+              <string/>
              </property>
             </widget>
            </item>
@@ -59,8 +127,11 @@
                <height>16777215</height>
               </size>
              </property>
+             <property name="toolTip">
+              <string>Delete selected shots</string>
+             </property>
              <property name="text">
-              <string>X</string>
+              <string/>
              </property>
             </widget>
            </item>
@@ -73,15 +144,21 @@
            </item>
            <item>
             <widget class="QPushButton" name="enable_selected_shots">
+             <property name="toolTip">
+              <string>Tick selected shots</string>
+             </property>
              <property name="text">
-              <string>Tick selected</string>
+              <string/>
              </property>
             </widget>
            </item>
            <item>
             <widget class="QPushButton" name="disable_selected_shots">
+             <property name="toolTip">
+              <string>Untick selected shots</string>
+             </property>
              <property name="text">
-              <string>Untick selected</string>
+              <string/>
              </property>
             </widget>
            </item>
@@ -108,6 +185,9 @@
            <property name="selectionMode">
             <enum>QAbstractItemView::ExtendedSelection</enum>
            </property>
+           <property name="textElideMode">
+            <enum>Qt::ElideLeft</enum>
+           </property>
           </widget>
          </item>
         </layout>
@@ -121,15 +201,21 @@
           <layout class="QHBoxLayout" name="horizontalLayout_2">
            <item>
             <widget class="QPushButton" name="group_channel">
+             <property name="toolTip">
+              <string>Group selected channels</string>
+             </property>
              <property name="text">
-              <string>Group Selected Channels</string>
+              <string/>
              </property>
             </widget>
            </item>
            <item>
             <widget class="QPushButton" name="delete_group">
+             <property name="toolTip">
+              <string>Delete selected group</string>
+             </property>
              <property name="text">
-              <string>Delete Selected Group</string>
+              <string/>
              </property>
             </widget>
            </item>
@@ -184,9 +270,11 @@
                <height>16777215</height>
               </size>
              </property>
+             <property name="toolTip">
+              <string>Move to top</string>
+             </property>
              <property name="text">
-              <string>^
-^</string>
+              <string/>
              </property>
             </widget>
            </item>
@@ -198,8 +286,11 @@
                <height>16777215</height>
               </size>
              </property>
+             <property name="toolTip">
+              <string>Move up</string>
+             </property>
              <property name="text">
-              <string>^</string>
+              <string/>
              </property>
             </widget>
            </item>
@@ -211,8 +302,11 @@
                <height>16777215</height>
               </size>
              </property>
+             <property name="toolTip">
+              <string>Move down</string>
+             </property>
              <property name="text">
-              <string>V</string>
+              <string/>
              </property>
             </widget>
            </item>
@@ -224,9 +318,11 @@
                <height>16777215</height>
               </size>
              </property>
+             <property name="toolTip">
+              <string>Move to bottom</string>
+             </property>
              <property name="text">
-              <string>V
-V</string>
+              <string/>
              </property>
             </widget>
            </item>
@@ -254,15 +350,21 @@ V</string>
          <layout class="QHBoxLayout" name="horizontalLayout_3">
           <item>
            <widget class="QPushButton" name="reset_x_axis">
-            <property name="text">
+            <property name="toolTip">
              <string>Reset time axis</string>
+            </property>
+            <property name="text">
+             <string/>
             </property>
            </widget>
           </item>
           <item>
            <widget class="QPushButton" name="reset_y_axis">
+            <property name="toolTip">
+             <string>Reset Y axis</string>
+            </property>
             <property name="text">
-             <string>Reset Y axes</string>
+             <string/>
             </property>
            </widget>
           </item>
@@ -297,8 +399,8 @@ V</string>
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>358</width>
-             <height>704</height>
+             <width>264</width>
+             <height>706</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_5">
@@ -359,9 +461,6 @@ V</string>
      <string>File</string>
     </property>
     <addaction name="actionOpen_Shot"/>
-    <addaction name="separator"/>
-    <addaction name="actionSave_runviewer_state"/>
-    <addaction name="actionLoad_runviewer_state"/>
     <addaction name="separator"/>
     <addaction name="actionQuit"/>
    </widget>
