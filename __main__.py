@@ -321,18 +321,24 @@ class RunViewer(object):
             colour_item = self.shot_model.item(row, SHOT_MODEL__COLOUR_INDEX)
 
             if checked:
-                colour = self.shot_colour_delegate.get_next_colour()
+                colour = colour_item.data(Qt.UserRole)
+                if qt_type == 'PyQt4':
+                    colour = colour.toPyObject()
+                if colour is not None:
+                    colour = colour()
+                else:
+                    colour = self.shot_colour_delegate.get_next_colour()
+
                 colour_item.setEditable(True)
                 pixmap = QPixmap(20, 20)
                 pixmap.fill(colour)
                 icon = QIcon(pixmap)
+                colour_item.setData(lambda clist=self.shot_colour_delegate._colours, colour=colour: int_to_enum(clist, colour), Qt.UserRole)
+                colour_item.setData(icon, Qt.DecorationRole)
             else:
-                colour = None
-                icon = None
+                # colour = None
+                # icon = None
                 colour_item.setEditable(False)
-
-            colour_item.setData(icon, Qt.DecorationRole)
-            colour_item.setData(lambda clist=self.shot_colour_delegate._colours, colour=colour: int_to_enum(clist, colour), Qt.UserRole)
 
             # model.setData(index, editor.itemIcon(editor.currentIndex()),
             # model.setData(index, editor.itemData(editor.currentIndex()), Qt.UserRole)
