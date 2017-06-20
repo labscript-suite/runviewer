@@ -190,7 +190,7 @@ class RunviewerMainWindow(QMainWindow):
 
 
 class RunViewer(object):
-    def __init__(self):
+    def __init__(self, exp_config):
         self.ui = UiLoader().load(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'main.ui'), RunviewerMainWindow())
 
         # setup shot treeview model
@@ -264,6 +264,8 @@ class RunViewer(object):
         #self._channels_list = {}
         self.plot_widgets = {}
         self.plot_items = {}
+        
+        self.last_opened_shots_folder = exp_config.get('paths', 'experiment_shot_storage')
 
         # start resample thread
         self._resample = False
@@ -282,8 +284,12 @@ class RunViewer(object):
             inmain_later(self.load_shot, filepath)
 
     def on_add_shot(self):
-        selected_files = QFileDialog.getOpenFileNames(self.ui, "Select file to load", "", "HDF5 files (*.h5 *.hdf5)")
+        selected_files = QFileDialog.getOpenFileNames(self.ui, "Select file to load", self.last_opened_shots_folder, "HDF5 files (*.h5 *.hdf5)")
         popup_warning = False
+
+        # Convert to standard platform specific path, otherwise Qt likes forward slashes:
+        selected_files = [os.path.abspath(shot_file) for shot_file in selected_files]
+        self.last_opened_shots_folder = os.path.dirname(selected_files[0])
         for file in selected_files:
             try:
                 filepath = str(file)
@@ -1055,7 +1061,7 @@ if __name__ == "__main__":
     shots_to_process_queue = Queue()
 
     config_path = os.path.join(config_prefix, '%s.ini' % socket.gethostname())
-    exp_config = LabConfig(config_path, {'ports': ['runviewer']})
+    exp_config = LabConfig(config_path, {"DEFAULT": ["experiment_name"], "paths": ["shared_drive", "experiment_shot_storage"], 'ports': ['runviewer']})
 
     port = int(exp_config.get('ports', 'runviewer'))
     myappid = 'monashbec.runviewer'  # arbitrary string
@@ -1066,7 +1072,7 @@ if __name__ == "__main__":
     # Start experiment server
     experiment_server = RunviewerServer(port)
 
-    app = RunViewer()
+    app = RunViewer(exp_config)
 
     def execute_program():
         qapplication.exec_()
