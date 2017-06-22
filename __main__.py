@@ -408,9 +408,6 @@ class RunViewer(object):
                 # icon = None
                 colour_item.setEditable(False)
 
-            colour_item.setData(icon, Qt.DecorationRole)
-            colour_item.setData(lambda clist=self.shot_colour_delegate._colours, colour=colour: int_to_enum(clist, colour), Qt.UserRole)
-
             # model.setData(index, editor.itemIcon(editor.currentIndex()),
             # model.setData(index, editor.itemData(editor.currentIndex()), Qt.UserRole)
 
