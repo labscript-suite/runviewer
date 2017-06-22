@@ -1086,7 +1086,10 @@ class Shot(object):
                     self._markers[row['time']] = {'color': row['color'].tolist()[0], 'label': row['label']}
             elif "runviewer" in file:
                 for time, val in file["runviewer"]["markers"].attrs.items():
-                    self._markers[float(time)] = eval(val)
+                    props = val.strip('{}}').rsplit(",", 1)
+                    color = list(map(int, props[0].split(":")[1].strip(" ()").split(",")))
+                    label = props[1].split(":")[1]
+                    self._markers[float(time)] = {'color': color, 'label': label}
 
     def add_trace(self, name, trace, parent_device_name, connection):
         name = unicode(name)
