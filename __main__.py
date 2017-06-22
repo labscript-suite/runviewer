@@ -1080,8 +1080,13 @@ class Shot(object):
 
     def _load_markers(self):
         with h5py.File(self.path, 'r') as file:
-            for time, val in file["runviewer"]["markers"].attrs.items():
-                self._markers[float(time)] = eval(val)
+            if "time_markers" in file:
+                for row in file["time_markers"]:
+                    print(row['color'].tolist()[0])
+                    self._markers[row['time']] = {'color': row['color'].tolist()[0], 'label': row['label']}
+            elif "runviewer" in file:
+                for time, val in file["runviewer"]["markers"].attrs.items():
+                    self._markers[float(time)] = eval(val)
 
     def add_trace(self, name, trace, parent_device_name, connection):
         name = unicode(name)
