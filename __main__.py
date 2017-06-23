@@ -647,10 +647,10 @@ class RunViewer(object):
                     has_units = True
                     units = shot.traces[channel][2]
 
-        titleStyle = {'size': '8pt', 'justify': 'left'}
-        self.plot_widgets[channel].setTitle(channel + ":", **titleStyle)
         if has_units:
             self.plot_widgets[channel].setLabel('left', channel, units=units)
+        else:
+            self.plot_widgets[channel].setLabel('left', channel)
 
     def on_x_range_changed(self, *args):
         # print 'x range changed'
