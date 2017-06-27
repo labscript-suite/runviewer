@@ -264,7 +264,8 @@ class RunViewer(object):
         #self._channels_list = {}
         self.plot_widgets = {}
         self.plot_items = {}
-        
+        self.shutter_lines = {}
+
         self.last_opened_shots_folder = exp_config.get('paths', 'experiment_shot_storage')
 
         # start resample thread
@@ -522,6 +523,20 @@ class RunViewer(object):
                 if channel not in self.plot_widgets:
                     self.create_plot(channel, ticked_shots)
                 self.plot_widgets[channel].hide()
+
+            if channel in self.shutter_lines:
+                for line in self.shutter_lines[channel]:
+                    self.plot_widgets[channel].removeItem(line)
+            self.shutter_lines[channel] = []
+
+            for shot, colour in ticked_shots.items():
+                if channel in shot.shutter_times:
+                    for t, val in shot.shutter_times[channel].items():
+                        scaled_t = t
+                        if val:  # val != 0, shutter open
+                            self.shutter_lines[channel].append(self.plot_widgets[channel].addLine(x=scaled_t, pen=pg.mkPen(color=QColor(0, 255, 0), width=2., style=Qt.DotLine)))
+                        else:  # else shutter close
+                            self.shutter_lines[channel].append(self.plot_widgets[channel].addLine(x=scaled_t, pen=pg.mkPen(color=QColor(255, 0, 0), width=2., style=Qt.DotLine)))
 
         self._resample = True
 
@@ -941,6 +956,9 @@ class Shot(object):
         # store list of channels
         self._channels = None
 
+        self._shutter_times = None
+        self.calibrations = {}
+
         # TODO: Get this dynamically
         device_list = ['PulseBlaster', 'NI_PCIe_6363', 'NI_PCI_6733']
 
@@ -957,6 +975,9 @@ class Shot(object):
 
             self.device_names = file['devices'].keys()
 
+            for name, open_delay, close_delay in numpy.array(file['calibrations']['Shutter']):
+                self.calibrations[name] = [open_delay, close_delay]
+
     def delete_cache(self):
         self._channels = None
         self._traces = None
@@ -966,6 +987,8 @@ class Shot(object):
             self._channels = {}
         if self._traces is None:
             self._traces = {}
+        if self._shutter_times is None:
+            self._shutter_times = {}
 
         # Let's walk the connection table, starting with the master pseudoclock
         master_pseudoclock_device = self.connection_table.find_by_name(self.master_pseudoclock_name)
@@ -976,6 +999,16 @@ class Shot(object):
         name = unicode(name)
         self._channels[name] = {'device_name': parent_device_name, 'port': connection}
         self._traces[name] = trace
+
+    def add_shutter_times(self, shutters):
+        for name, open_state in shutters:
+            x_values, y_values = self._traces[name]
+            values = zip(x_values, y_values)
+            change_values = [values[0]]
+            for i in range(1, len(values)):
+                if values[i][1] != values[i - 1][1]:
+                    change_values.append(values[i])
+            self._shutter_times[name] = {x_value + (self.calibrations[name][0] if y_value == open_state else self.calibrations[name][1]): 1 if y_value == open_state else 0 for x_value, y_value in change_values}
 
     def _load_device(self, device, clock=None):
         try:
@@ -1002,6 +1035,19 @@ class Shot(object):
             else:
                 print 'Failed to load device (unknown name, device object does not have attribute name)'
 
+        try:
+            shutters = [(name, child_con.properties['open_state']) for name, child_con in device.child_list.items() if child_con.device_class == "Shutter"]
+        except KeyError:
+            # no openstate in connection table
+            with h5py.File(self.path, 'r') as file:
+                if "runviewer" in file:
+                    if "shutter_times" in file["runviewer"]:
+                        for name, val in file["runviewer"]["shutter_times"].attrs.items():
+                            self._shutter_times[name] = {float(key_value.split(":")[0]): int(key_value.split(":")[1]) for key_value in val.strip('{}}').split(",")}
+            pass
+        else:
+            self.add_shutter_times(shutters)
+
     @property
     def channels(self):
         if self._channels is None:
@@ -1020,6 +1066,12 @@ class Shot(object):
         if self._traces is None:
             self._load()
         return self._traces
+
+    @property
+    def shutter_times(self):
+        if self._shutter_times is None:
+            self._load()
+        return self._shutter_times
 
 
 class TempShot(Shot):
