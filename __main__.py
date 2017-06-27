@@ -524,11 +524,13 @@ class RunViewer(object):
                     self.create_plot(channel, ticked_shots)
                 self.plot_widgets[channel].hide()
 
+            # Remove all Shutter Markers
             if channel in self.shutter_lines:
                 for line in self.shutter_lines[channel]:
                     self.plot_widgets[channel].removeItem(line)
             self.shutter_lines[channel] = []
 
+            # Add Shutter Markers of ticked Shots
             for shot, colour in ticked_shots.items():
                 if channel in shot.shutter_times:
                     for t, val in shot.shutter_times[channel].items():
@@ -956,8 +958,9 @@ class Shot(object):
         # store list of channels
         self._channels = None
 
+        # store list of shutter changes and callibrations
         self._shutter_times = None
-        self.calibrations = {}
+        self._shutter_calibrations = {}
 
         # TODO: Get this dynamically
         device_list = ['PulseBlaster', 'NI_PCIe_6363', 'NI_PCI_6733']
@@ -975,8 +978,9 @@ class Shot(object):
 
             self.device_names = file['devices'].keys()
 
+            # Get Shutter Calibrations
             for name, open_delay, close_delay in numpy.array(file['calibrations']['Shutter']):
-                self.calibrations[name] = [open_delay, close_delay]
+                self._shutter_calibrations[name] = [open_delay, close_delay]
 
     def delete_cache(self):
         self._channels = None
@@ -1000,6 +1004,7 @@ class Shot(object):
         self._channels[name] = {'device_name': parent_device_name, 'port': connection}
         self._traces[name] = trace
 
+    # Temporary solution to physical shutter times
     def add_shutter_times(self, shutters):
         for name, open_state in shutters:
             x_values, y_values = self._traces[name]
@@ -1008,7 +1013,7 @@ class Shot(object):
             for i in range(1, len(values)):
                 if values[i][1] != values[i - 1][1]:
                     change_values.append(values[i])
-            self._shutter_times[name] = {x_value + (self.calibrations[name][0] if y_value == open_state else self.calibrations[name][1]): 1 if y_value == open_state else 0 for x_value, y_value in change_values}
+            self._shutter_times[name] = {x_value + (self._shutter_calibrations[name][0] if y_value == open_state else self._shutter_calibrations[name][1]): 1 if y_value == open_state else 0 for x_value, y_value in change_values}
 
     def _load_device(self, device, clock=None):
         try:
@@ -1035,6 +1040,7 @@ class Shot(object):
             else:
                 print 'Failed to load device (unknown name, device object does not have attribute name)'
 
+        # get all Shutters with their open_state
         try:
             shutters = [(name, child_con.properties['open_state']) for name, child_con in device.child_list.items() if child_con.device_class == "Shutter"]
         except KeyError:
