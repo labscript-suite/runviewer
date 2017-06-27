@@ -357,7 +357,9 @@ class RunViewer(object):
 
         # Convert to standard platform specific path, otherwise Qt likes forward slashes:
         selected_files = [os.path.abspath(str(shot_file)) for shot_file in selected_files]
-        self.last_opened_shots_folder = os.path.dirname(selected_files[0])
+        if len(selected_files) > 0:
+            self.last_opened_shots_folder = os.path.dirname(selected_files[0])
+
         for file in selected_files:
             try:
                 filepath = str(file)
