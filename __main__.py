@@ -503,6 +503,11 @@ class RunViewer(object):
                     for shot in self.plot_items[channel]:
                         if shot not in ticked_shots.keys():
                             self.plot_widgets[channel].removeItem(self.plot_items[channel][shot])
+                            # Remove Shutter Markers of unticked Shots
+                            if shot in self.shutter_lines[channel]:
+                                for line in self.shutter_lines[channel][shot]:
+                                    self.plot_widgets[channel].removeItem(line)
+                                self.shutter_lines[channel].pop(shot)
                             to_delete.append(shot)
                     for shot in to_delete:
                         del self.plot_items[channel][shot]
@@ -515,6 +520,16 @@ class RunViewer(object):
                             plot_item = self.plot_widgets[channel].plot([0, 0], [0], pen=pg.mkPen(QColor(colour), width=2), stepMode=True)
                             self.plot_items[channel][shot] = plot_item
 
+                        # Add Shutter Markers of newly ticked Shots
+                        if shot not in self.shutter_lines[channel] and channel in shot.shutter_times:
+                            self.shutter_lines[channel][shot] = []
+                            for t, val in shot.shutter_times[channel].items():
+                                scaled_t = t
+                                if val:  # val != 0, shutter open
+                                    self.shutter_lines[channel][shot].append(self.plot_widgets[channel].addLine(x=scaled_t, pen=pg.mkPen(color=QColor(0, 255, 0), width=2., style=Qt.DotLine)))
+                                else:  # else shutter close
+                                    self.shutter_lines[channel][shot].append(self.plot_widgets[channel].addLine(x=scaled_t, pen=pg.mkPen(color=QColor(255, 0, 0), width=2., style=Qt.DotLine)))
+
                 # If no, create one
                 else:
                     self.create_plot(channel, ticked_shots)
@@ -523,22 +538,6 @@ class RunViewer(object):
                 if channel not in self.plot_widgets:
                     self.create_plot(channel, ticked_shots)
                 self.plot_widgets[channel].hide()
-
-            # Remove all Shutter Markers
-            if channel in self.shutter_lines:
-                for line in self.shutter_lines[channel]:
-                    self.plot_widgets[channel].removeItem(line)
-            self.shutter_lines[channel] = []
-
-            # Add Shutter Markers of ticked Shots
-            for shot, colour in ticked_shots.items():
-                if channel in shot.shutter_times:
-                    for t, val in shot.shutter_times[channel].items():
-                        scaled_t = t
-                        if val:  # val != 0, shutter open
-                            self.shutter_lines[channel].append(self.plot_widgets[channel].addLine(x=scaled_t, pen=pg.mkPen(color=QColor(0, 255, 0), width=2., style=Qt.DotLine)))
-                        else:  # else shutter close
-                            self.shutter_lines[channel].append(self.plot_widgets[channel].addLine(x=scaled_t, pen=pg.mkPen(color=QColor(255, 0, 0), width=2., style=Qt.DotLine)))
 
         self._resample = True
 
@@ -551,6 +550,7 @@ class RunViewer(object):
         self.plot_widgets[channel].setXLink('runviewer - time axis link')
         self.plot_widgets[channel].sigXRangeChanged.connect(self.on_x_range_changed)
         self.ui.plot_layout.addWidget(self.plot_widgets[channel])
+        self.shutter_lines[channel] = {}  # initialize Storage for shutter lines
 
         has_units = False
         units = ''
@@ -565,6 +565,16 @@ class RunViewer(object):
                 if len(shot.traces[channel]) == 3:
                     has_units = True
                     units = shot.traces[channel][2]
+
+                # Add Shutter Markers of ticked Shots
+                if shot not in self.shutter_lines[channel] and channel in shot.shutter_times:
+                    self.shutter_lines[channel][shot] = []
+                    for t, val in shot.shutter_times[channel].items():
+                        scaled_t = t
+                        if val:  # val != 0, shutter open
+                            self.shutter_lines[channel][shot].append(self.plot_widgets[channel].addLine(x=scaled_t, pen=pg.mkPen(color=QColor(0, 255, 0), width=2., style=Qt.DotLine)))
+                        else:  # else shutter close
+                            self.shutter_lines[channel][shot].append(self.plot_widgets[channel].addLine(x=scaled_t, pen=pg.mkPen(color=QColor(255, 0, 0), width=2., style=Qt.DotLine)))
 
         if has_units:
             self.plot_widgets[channel].setLabel('left', channel, units=units)
