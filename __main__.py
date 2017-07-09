@@ -238,6 +238,7 @@ class RunViewer(object):
         time_axis_plot.setMouseEnabled(y=False)
         time_axis_plot.getAxis('left').setTicks([])  # hide y ticks in the left & right side. only show time axis
         time_axis_plot.getAxis('right').setTicks([])
+        time_axis_plot.scene().sigMouseMoved.connect(lambda pos: self.mouseMovedEvent(pos, time_axis_plot))
         time_axis_plot_item = time_axis_plot.plot([0, 1], [0, 0], pen=(255, 255, 255))
         self._time_axis_plot = (time_axis_plot, time_axis_plot_item)
 
@@ -255,7 +256,7 @@ class RunViewer(object):
         markers_plot.setMouseEnabled(y=False)
         markers_plot.setYRange(0, MARKERS_VERT_AMOUNT + 0.5)
         markers_plot_item = markers_plot.plot([])
-        markers_plot.scene().sigMouseMoved.connect(self.mouseMovedEvent)
+        markers_plot.scene().sigMouseMoved.connect(lambda pos: self.mouseMovedEvent(pos, markers_plot))
         self._markers_plot = (markers_plot, markers_plot_item)
 
         self.ui.plot_layout.addWidget(markers_plot)
@@ -322,18 +323,17 @@ class RunViewer(object):
 
         self._tooltip = {'text': "", "pos": None}
 
-    def mouseMovedEvent(self, event):
-        position = event
-        v = self._markers_plot[0].scene().views()[0]
+    def mouseMovedEvent(self, position, ui):
+        v = ui.scene().views()[0]
         viewP = v.mapFromScene(position)
-        glob_pos = self._markers_plot[0].mapToGlobal(viewP)  # convert to Screen x
-        glob_zero = self._markers_plot[0].mapToGlobal(QPoint(0, 0))
+        glob_pos = ui.mapToGlobal(viewP)  # convert to Screen x
+        glob_zero = ui.mapToGlobal(QPoint(0, 0))
         self._global_start_x = glob_zero.x()
         self._global_start_y = glob_zero.y()
-        self._global_width = self._markers_plot[0].width()
-        self._global_height = self._markers_plot[0].height()
+        self._global_width = ui.width()
+        self._global_height = ui.height()
 
-        coord_pos = self._markers_plot[0].plotItem.vb.mapSceneToView(position)
+        coord_pos = ui.plotItem.vb.mapSceneToView(position)
 
         if len(self.get_selected_shots_and_colours()) > 0:
             unscaled_t = coord_pos.x()
@@ -632,7 +632,7 @@ class RunViewer(object):
         self.plot_widgets[channel].setMouseEnabled(y=False)
         self.plot_widgets[channel].setXLink('runviewer - time axis link')
         self.plot_widgets[channel].sigXRangeChanged.connect(self.on_x_range_changed)
-        self.plot_widgets[channel].scene().sigMouseMoved.connect(self.mouseMovedEvent)
+        self.plot_widgets[channel].scene().sigMouseMoved.connect(lambda pos: self.mouseMovedEvent(pos, self.plot_widgets[channel]))
         self.ui.plot_layout.insertWidget(self.ui.plot_layout.count() - 1, self.plot_widgets[channel])
 
         has_units = False
@@ -1081,7 +1081,6 @@ class Shot(object):
         with h5py.File(self.path, 'r') as file:
             if "time_markers" in file:
                 for row in file["time_markers"]:
-                    print(row['color'].tolist()[0])
                     self._markers[row['time']] = {'color': row['color'].tolist()[0], 'label': row['label']}
             elif "runviewer" in file:
                 for time, val in file["runviewer"]["markers"].attrs.items():
