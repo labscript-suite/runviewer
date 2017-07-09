@@ -259,8 +259,19 @@ class RunViewer(object):
         markers_plot.scene().sigMouseMoved.connect(lambda pos: self.mouseMovedEvent(pos, markers_plot))
         self._markers_plot = (markers_plot, markers_plot_item)
 
-        self.ui.plot_layout.addWidget(markers_plot)
+        markers_plot.setParent(self.ui.scrollArea_2)
         self.ui.plot_layout.addWidget(time_axis_plot)
+
+        self.ui.plot_layout.setContentsMargins(0, markers_plot.height()-1, 0, 0)
+
+        def resizeEvent(event):
+            rect = self.ui.scrollArea_2.viewport().geometry()
+            markers_plot.setGeometry(
+                0, 0,
+                rect.width(), 0)
+            QScrollArea.resizeEvent(self.ui.scrollArea_2, event)
+
+        self.ui.scrollArea_2.resizeEvent = resizeEvent
 
         # add some icons
         self.ui.add_shot.setIcon(QIcon(':/qtutils/fugue/plus'))
@@ -548,7 +559,7 @@ class RunViewer(object):
 
                 self._time_axis_plot[0].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=Qt.DashLine))
                 if not(i == 0 and t == 0):  # skip the first item if it's t=0
-                    time_label = pg.TextItem(text=format_time(t - last_t), color=last_color, anchor=(0, 1), fill=QColor(255, 255, 255))
+                    time_label = pg.TextItem(text=format_time(t - last_t), color=last_color, anchor=(0, 1), fill=QColor(255, 255, 255, 200))
                     time_label.setPos(last_t, (i % MARKERS_VERT_AMOUNT))
                     self._time_axis_plot[0].addItem(time_label)
                 last_t = t
@@ -573,7 +584,15 @@ class RunViewer(object):
             if shot.stop_time > largest_stop_time:
                 largest_stop_time = shot.stop_time
                 stop_time_set = True
-            self.all_markers.update(shot.markers)
+            new_markers = {}
+            for key in shot.markers:
+                if key in self.all_markers.keys():
+                    if self.all_markers[key] != shot.markers[key]:
+                        self.all_markers[key] = "{} / {}".format(self.all_markers[key]['label'], shot.markers[key]['label'])
+                else:
+                    new_markers[key] = shot.markers[key]
+
+            self.all_markers.update(new_markers)
         if not stop_time_set:
             largest_stop_time = 1.0
 
