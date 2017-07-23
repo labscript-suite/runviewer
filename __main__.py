@@ -265,7 +265,8 @@ class RunViewer(object):
     def on_add_shot(self):
         selected_files = QFileDialog.getOpenFileNames(self.ui, "Select file to load", self.last_opened_shots_folder, "HDF5 files (*.h5 *.hdf5)")
         popup_warning = False
-
+        if isinstance(selected_files, tuple):
+            selected_files, _ = selected_files
         # Convert to standard platform specific path, otherwise Qt likes forward slashes:
         selected_files = [os.path.abspath(str(shot_file)) for shot_file in selected_files]
         if len(selected_files) > 0:
