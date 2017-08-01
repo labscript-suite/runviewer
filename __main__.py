@@ -36,7 +36,7 @@ except ImportError:
     raise ImportError('Require labscript_utils > 2.1.0')
 
 check_version('labscript_utils', '2.0', '3')
-check_version('qtutils', '1.5.2', '2')
+check_version('qtutils', '2.0.0', '3.0.0')
 check_version('zprocess', '1.1.2', '3')
 
 from labscript_utils.setup_logging import setup_logging
