@@ -1068,8 +1068,7 @@ if __name__ == "__main__":
 
     shots_to_process_queue = Queue()
 
-    config_path = os.path.join(config_prefix, '%s.ini' % socket.gethostname())
-    exp_config = LabConfig(config_path, {"DEFAULT": ["experiment_name"], "paths": ["shared_drive", "experiment_shot_storage"], 'ports': ['runviewer']})
+    exp_config = LabConfig(required_params = {"DEFAULT": ["experiment_name"], "paths": ["shared_drive", "experiment_shot_storage"], 'ports': ['runviewer']})
 
     port = int(exp_config.get('ports', 'runviewer'))
     myappid = 'monashbec.runviewer'  # arbitrary string
