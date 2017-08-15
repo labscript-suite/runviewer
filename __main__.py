@@ -36,7 +36,7 @@ except ImportError:
     raise ImportError('Require labscript_utils > 2.1.0')
 
 check_version('labscript_utils', '2.0', '3')
-check_version('qtutils', '1.5.2', '2')
+check_version('qtutils', '2.0.0', '3.0.0')
 check_version('zprocess', '1.1.2', '3')
 
 from labscript_utils.setup_logging import setup_logging
@@ -54,27 +54,10 @@ zprocess.locking.set_client_process_name('runviewer')
 # h5py must be imported after h5_lock, thus we do the check here
 check_version('pyqtgraph', '0.9.10', '1')
 
-lower_argv = [s.lower() for s in sys.argv]
-qt_type = 'PyQt4'
-if 'pyside' in lower_argv:
-    # Import Qt
-    from PySide.QtCore import *
-    from PySide.QtGui import *
-    qt_type = 'PySide'
-    # from PySide.QtUiTools import QUiLoader
-elif 'pyqt' in lower_argv:
-    from PyQt4.QtCore import *
-    from PyQt4.QtGui import *
-    from PyQt4.QtCore import pyqtSignal as Signal
-else:
-    try:
-        from PyQt4.QtCore import *
-        from PyQt4.QtGui import *
-        from PyQt4.QtCore import pyqtSignal as Signal
-    except Exception:
-        from PySide.QtCore import *
-        from PySide.QtGui import *
-        qt_type = 'PySide'
+from qtutils.qt.QtCore import *
+from qtutils.qt.QtGui import *
+from qtutils.qt.QtWidgets import *
+from qtutils.qt.QtCore import pyqtSignal as Signal
 
 import numpy
 
@@ -155,8 +138,6 @@ class ColourDelegate(QItemDelegate):
 
     def setEditorData(self, editor, index):
         value = index.model().data(index, Qt.UserRole)
-        if qt_type == 'PyQt4':
-            value = value.toPyObject()
         for i in range(editor.count()):
             if editor.itemData(i) == value():
                 editor.setCurrentIndex(i)
@@ -165,8 +146,6 @@ class ColourDelegate(QItemDelegate):
     def setModelData(self, editor, model, index):
         icon = editor.itemIcon(editor.currentIndex())
         colour = editor.itemData(editor.currentIndex())
-        if qt_type == 'PyQt4':
-            colour = colour.toPyObject()
 
         # Note, all data being written to the model must be read out of the editor PRIOR to calling model.setData()
         #       This is because a call to model.setData() triggers setEditorData(), which messes up subsequent
@@ -264,7 +243,7 @@ class RunViewer(object):
         #self._channels_list = {}
         self.plot_widgets = {}
         self.plot_items = {}
-        
+
         self.last_opened_shots_folder = exp_config.get('paths', 'experiment_shot_storage')
 
         # start resample thread
@@ -286,7 +265,8 @@ class RunViewer(object):
     def on_add_shot(self):
         selected_files = QFileDialog.getOpenFileNames(self.ui, "Select file to load", self.last_opened_shots_folder, "HDF5 files (*.h5 *.hdf5)")
         popup_warning = False
-
+        if isinstance(selected_files, tuple):
+            selected_files, _ = selected_files
         # Convert to standard platform specific path, otherwise Qt likes forward slashes:
         selected_files = [os.path.abspath(str(shot_file)) for shot_file in selected_files]
         if len(selected_files) > 0:
@@ -324,8 +304,6 @@ class RunViewer(object):
 
             if checked:
                 colour = colour_item.data(Qt.UserRole)
-                if qt_type == 'PyQt4':
-                    colour = colour.toPyObject()
                 if colour is not None:
                     colour = colour()
                 else:
@@ -351,16 +329,12 @@ class RunViewer(object):
 
             # get reference to the changed shot
             current_shot = self.shot_model.item(self.shot_model.indexFromItem(item).row(), SHOT_MODEL__CHECKBOX_INDEX).data()
-            if qt_type == 'PyQt4':
-                current_shot = current_shot.toPyObject()
 
             # find and update the pen of the plot items
             for channel in self.plot_items.keys():
                 for shot in self.plot_items[channel]:
                     if shot == current_shot:
                         colour = item.data(Qt.UserRole)
-                        if qt_type == 'PyQt4':
-                            colour = colour.toPyObject()
                         self.plot_items[channel][shot].setPen(pg.mkPen(QColor(colour()), width=2))
 
     def load_shot(self, filepath):
@@ -399,10 +373,6 @@ class RunViewer(object):
             if item.checkState() == Qt.Checked:
                 shot = item.data()
                 colour_item_data = colour_item.data(Qt.UserRole)
-                if qt_type == 'PyQt4':
-                    colour_item_data = colour_item_data.toPyObject()
-                    shot = shot.toPyObject()
-
                 ticked_shots[shot] = colour_item_data()
         return ticked_shots
 
