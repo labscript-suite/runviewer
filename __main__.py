@@ -10,6 +10,8 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
+from __future__ import division, unicode_literals, print_function, absolute_import
+from labscript_utils import PY2
 
 import os
 import sys
@@ -18,7 +20,11 @@ import threading
 import logging
 import ctypes
 import socket
-from Queue import Queue
+if PY2:
+    str = unicode
+    from Queue import Queue
+else:
+    from queue import Queue
 
 import signal
 # Quit on ctrl-c
@@ -923,9 +929,9 @@ class Shot(object):
             self.master_pseudoclock_name = file['connection table'].attrs['master_pseudoclock']
 
             # get stop time
-            self.stop_time = file['devices/%s' % self.master_pseudoclock_name].attrs['stop_time']
+            self.stop_time = file['devices'][self.master_pseudoclock_name].attrs['stop_time']
 
-            self.device_names = file['devices'].keys()
+            self.device_names = list(file['devices'].keys())
 
     def delete_cache(self):
         self._channels = None
@@ -949,7 +955,7 @@ class Shot(object):
 
     def _load_device(self, device, clock=None):
         try:
-            print 'loading %s' % device.name
+            print('loading %s' % device.name)
             module = device.device_class
             # Load the master pseudoclock class
             # labscript_devices.import_device(module)
@@ -968,9 +974,9 @@ class Shot(object):
             #    raise
             # raise
             if hasattr(device, 'name'):
-                print 'Failed to load device %s' % device.name
+                print('Failed to load device %s' % device.name)
             else:
-                print 'Failed to load device (unknown name, device object does not have attribute name)'
+                print('Failed to load device (unknown name, device object does not have attribute name)')
 
     @property
     def channels(self):
