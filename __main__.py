@@ -398,12 +398,12 @@ class RunViewer(object):
         for i in range(self.channel_model.rowCount()):
             item = self.channel_model.item(i, CHANNEL_MODEL__CHECKBOX_INDEX)
             # Sanity check
-            if unicode(item.text()) in treeview_channels_dict:
+            if str(item.text()) in treeview_channels_dict:
                 raise RuntimeError("A duplicate channel name was detected in the treeview due to an internal error. Please lodge a bugreport detailing how the channels with the same name appeared in the channel treeview. Please restart the application")
 
-            treeview_channels_dict[unicode(item.text())] = i
+            treeview_channels_dict[str(item.text())] = i
             if not item.isEnabled():
-                deactivated_treeview_channels_dict[unicode(item.text())] = i
+                deactivated_treeview_channels_dict[str(item.text())] = i
         treeview_channels = set(treeview_channels_dict.keys())
         deactivated_treeview_channels = set(deactivated_treeview_channels_dict.keys())
 
@@ -466,7 +466,7 @@ class RunViewer(object):
         # Update plots
         for i in range(self.channel_model.rowCount()):
             check_item = self.channel_model.item(i, CHANNEL_MODEL__CHECKBOX_INDEX)
-            channel = unicode(check_item.text())
+            channel = str(check_item.text())
             if check_item.checkState() == Qt.Checked and check_item.isEnabled():
                 # we want to show this plot
                 # does a plot already exist? If yes, show it
@@ -899,7 +899,7 @@ class RunViewer(object):
         # add all widgets
         for i in range(self.channel_model.rowCount()):
             check_item = self.channel_model.item(i, CHANNEL_MODEL__CHECKBOX_INDEX)
-            channel = unicode(check_item.text())
+            channel = str(check_item.text())
             if channel in self.plot_widgets:
                 self.ui.plot_layout.addWidget(self.plot_widgets[channel])
                 if check_item.checkState() == Qt.Checked and check_item.isEnabled():
@@ -926,7 +926,7 @@ class Shot(object):
         # open h5 file
         with h5py.File(path, 'r') as file:
             # Get master pseudoclock
-            self.master_pseudoclock_name = file['connection table'].attrs['master_pseudoclock']
+            self.master_pseudoclock_name = file['connection table'].attrs['master_pseudoclock'].decode('utf8')
 
             # get stop time
             self.stop_time = file['devices'][self.master_pseudoclock_name].attrs['stop_time']
@@ -949,7 +949,7 @@ class Shot(object):
         self._load_device(master_pseudoclock_device)
 
     def add_trace(self, name, trace, parent_device_name, connection):
-        name = unicode(name)
+        name = str(name)
         self._channels[name] = {'device_name': parent_device_name, 'port': connection}
         self._traces[name] = trace
 
