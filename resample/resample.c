@@ -204,19 +204,17 @@ module_functions[] = {
         NULL,                /* m_clear */
         NULL,                /* m_free */
     };
-#endif
 
-PyMODINIT_FUNC
-#if PY_MAJOR_VERSION >= 3
-PyInit_resample(void)
-#else
-initresample(void)
-#endif
+int PyInit_resample(void)
 {
-    #if PY_MAJOR_VERSION >= 3
-        PyModule_Create(&moduledef);
-    #else
-        Py_InitModule3("resample", module_functions, "");
-        import_array();
-    #endif
+    PyModule_Create(&moduledef);
+    import_array();
 }
+
+#else
+void initresample(void)
+{
+    Py_InitModule3("resample", module_functions, "");
+    import_array();
+}
+#endif
