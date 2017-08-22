@@ -23,14 +23,11 @@ if arch == '32bit' and os_platform == 'win32':
 elif arch == '64bit' and os_platform == 'win32':
     plat_name = 'win64'
     file_name = 'resample.pyd'
-elif arch == '32bit' and (os_platform == "linux" or os_platform == "linux2"):
-    plat_name = 'unix32'
-    file_name = 'resample.so'
 elif arch == '64bit' and (os_platform == "linux" or os_platform == "linux2"):
-    plat_name = 'unix64'
+    plat_name = 'linux64'
     file_name = 'resample.so'
 elif arch == '64bit' and os_platform == "darwin":
-    plat_name = 'mac64'
+    plat_name = 'darwin64'
     file_name = 'resample.so'
 else:
     raise RuntimeError('Unsupported platform, please report a bug')
