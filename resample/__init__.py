@@ -2,6 +2,7 @@ import os
 import platform
 import shutil
 import importlib
+import sys
 
 # This sub-package is a proxy for the extensension file that abstracts the platform.
 # Here we check what platform we are on and we import the appropriate extension from
@@ -14,20 +15,21 @@ if __name__ == '__main__':
     raise RuntimeError('Due to funny import rules, this file can\'t be run as __main__.' +
                        'please do \'import runmanager.resample\' from elsewhere to run it.')
 
-arch = platform.architecture()
-if arch == ('32bit', 'WindowsPE'):
+arch, _ = platform.architecture()
+platform = sys.platform
+if arch == '32bit' and platform == 'win32':
     plat_name = 'win32'
     file_name = 'resample.pyd'
-elif arch == ('64bit', 'WindowsPE'):
+elif arch == '64bit' and platform == 'win32':
     plat_name = 'win64'
     file_name = 'resample.pyd'
-elif arch == ('32bit', 'ELF'):
+elif arch == '32bit' and (platform == "linux" or platform == "linux2"):
     plat_name = 'unix32'
     file_name = 'resample.so'
-elif arch == ('64bit', 'ELF'):
+elif arch == '64bit' and (platform == "linux" or platform == "linux2"):
     plat_name = 'unix64'
     file_name = 'resample.so'
-elif arch == ('64bit', ''):
+elif arch == '64bit' and platform == "darwin":
     plat_name = 'mac64'
     file_name = 'resample.so'
 else:
