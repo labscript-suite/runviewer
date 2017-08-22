@@ -27,9 +27,12 @@ elif arch == ('32bit', 'ELF'):
 elif arch == ('64bit', 'ELF'):
     plat_name = 'unix64'
     file_name = 'resample.so'
+elif arch == ('64bit', ''):
+    plat_name = 'mac64'
+    file_name = 'resample.so'
 else:
     raise RuntimeError('Unsupported platform, please report a bug')
-    
+
 module = importlib.import_module('runviewer.resample.%s.resample'%plat_name)
 
-resample = module.resample
+resample = module.resample
