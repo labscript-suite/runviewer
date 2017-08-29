@@ -212,7 +212,6 @@ class RunViewer(object):
         self.ui.channel_move_to_bottom.setIcon(QIcon(':/qtutils/fugue/arrow-stop-270'))
         self.ui.reset_x_axis.setIcon(QIcon(':/qtutils/fugue/clock-history'))
         self.ui.reset_y_axis.setIcon(QIcon(':/qtutils/fugue/magnifier-history'))
-        self.ui.show_shutters.setIcon(QIcon(':/qtutils/fugue/switch'))
 
         self.ui.actionOpen_Shot.setIcon(QIcon(':/qtutils/fugue/plus'))
         self.ui.actionQuit.setIcon(QIcon(':/qtutils/fugue/cross-button'))
@@ -265,10 +264,10 @@ class RunViewer(object):
             filepath = shots_to_process_queue.get()
             inmain_later(self.load_shot, filepath)
 
-    def on_toggle_shutter(self, checked):
+    def on_toggle_shutter(self, checked, current_shot):
         for channel in self.shutter_lines:
             for shot in self.shutter_lines[channel]:
-                if shot == shot:
+                if shot == current_shot:
                     for line in self.shutter_lines[channel][shot][0]:
                         if checked:
                             line.show()
@@ -355,7 +354,8 @@ class RunViewer(object):
                         colour = item.data(Qt.UserRole)
                         self.plot_items[channel][shot].setPen(pg.mkPen(QColor(colour()), width=2))
         elif self.shot_model.indexFromItem(item).column() == SHOT_MODEL__SHUTTER_INDEX:
-            self.on_toggle_shutter(item.checkState())
+            current_shot = self.shot_model.item(self.shot_model.indexFromItem(item).row(), SHOT_MODEL__CHECKBOX_INDEX).data()
+            self.on_toggle_shutter(item.checkState(), current_shot)
 
     def load_shot(self, filepath):
         shot = Shot(filepath)
