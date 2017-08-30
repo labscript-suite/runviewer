@@ -120,6 +120,7 @@ def int_to_enum(enum_list, value):
      can't be interpreted by QColor correctly (for example)
      unfortunately Qt doesn't provide a python list structure of enums, so you have to build the list yourself.
     """
+
     for item in enum_list:
         if item == value:
             return item
@@ -217,7 +218,6 @@ class RunViewer(object):
         time_axis_plot.setMouseEnabled(y=False)
         time_axis_plot.getAxis('left').setTicks([])  # hide y ticks in the left & right side. only show time axis
         time_axis_plot.getAxis('right').setTicks([])
-        time_axis_plot.scene().sigMouseMoved.connect(lambda pos: self.mouseMovedEvent(pos, time_axis_plot))
         time_axis_plot_item = time_axis_plot.plot([0, 1], [0, 0], pen=(255, 255, 255))
         self._time_axis_plot = (time_axis_plot, time_axis_plot_item)
 
@@ -235,7 +235,6 @@ class RunViewer(object):
         markers_plot.setMouseEnabled(y=False)
         markers_plot.setYRange(0, MARKERS_VERT_AMOUNT + 0.5)
         markers_plot_item = markers_plot.plot([])
-        markers_plot.scene().sigMouseMoved.connect(lambda pos: self.mouseMovedEvent(pos, markers_plot))
         self._markers_plot = (markers_plot, markers_plot_item)
 
         markers_plot.setParent(self.ui.scrollArea_2)
@@ -310,31 +309,6 @@ class RunViewer(object):
         self._shots_to_process_thread = threading.Thread(target=self._process_shots)
         self._shots_to_process_thread.daemon = True
         self._shots_to_process_thread.start()
-
-        self._tooltip = {'text': "", "pos": None}
-
-    def mouseMovedEvent(self, position, ui):
-        v = ui.scene().views()[0]
-        viewP = v.mapFromScene(position)
-        glob_pos = ui.mapToGlobal(viewP)  # convert to Screen x
-        glob_zero = ui.mapToGlobal(QPoint(0, 0))
-        self._global_start_x = glob_zero.x()
-        self._global_start_y = glob_zero.y()
-        self._global_width = ui.width()
-        self._global_height = ui.height()
-
-        coord_pos = ui.plotItem.vb.mapSceneToView(position)
-
-        if len(self.get_selected_shots_and_colours()) > 0:
-            unscaled_t = coord_pos.x()
-            if unscaled_t is not None:
-                self._tooltip["pos"] = QPoint(glob_pos.x(), glob_pos.y())
-                self._tooltip["text"] = "Curs: {:.4f}ms".format(unscaled_t * 1000)
-                QToolTip.showText(self._tooltip["pos"], self._tooltip["text"])
-            else:
-                self._tooltip["text"] = ""
-        else:
-            self._tooltip["text"] = ""
 
     def _process_shots(self):
         while True:
@@ -616,13 +590,13 @@ class RunViewer(object):
         self.plot_widgets[channel] = pg.PlotWidget()  # name=channel)
         self.plot_widgets[channel].setMinimumHeight(200)
         self.plot_widgets[channel].setMaximumHeight(200)
+        self.plot_widgets[channel].setLabel('bottom', 'Time', units='s')
         self.plot_widgets[channel].showAxis('right', True)
-        self.plot_widgets[channel].showAxis('bottom', False)
+        self.plot_widgets[channel].showAxis('bottom', True)
         self.plot_widgets[channel].setMouseEnabled(y=False)
         self.plot_widgets[channel].setXLink('runviewer - time axis link')
         self.plot_widgets[channel].sigXRangeChanged.connect(self.on_x_range_changed)
-        self.plot_widgets[channel].scene().sigMouseMoved.connect(lambda pos: self.mouseMovedEvent(pos, self.plot_widgets[channel]))
-        self.ui.plot_layout.insertWidget(self.ui.plot_layout.count() - 1, self.plot_widgets[channel])
+        self.ui.plot_layout.insertWidget(self.ui.plot_layout.count() - 2, self.plot_widgets[channel])
 
         has_units = False
         units = ''
