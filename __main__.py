@@ -507,6 +507,8 @@ class RunViewer(object):
                                     self.plot_widgets[channel].removeItem(line)
                                 self.shutter_lines[channel].pop(shot)
                             to_delete.append(shot)
+                    for shot in to_delete:
+                        del self.plot_items[channel][shot]
 
                     # do we need to add any plot items for shots that were not previously selected?
                     for shot, (colour, shutters_checked) in ticked_shots.items():
@@ -1075,6 +1077,11 @@ class Shot(object):
             shutters = [(name, child_con.properties['open_state']) for name, child_con in device.child_list.items() if child_con.device_class == "Shutter"]
         except KeyError:
             # no openstate in connection table
+            with h5py.File(self.path, 'r') as file:
+                if "runviewer" in file:
+                    if "shutter_times" in file["runviewer"]:
+                        for name, val in file["runviewer"]["shutter_times"].attrs.items():
+                            self._shutter_times[name] = {float(key_value.split(":")[0]): int(key_value.split(":")[1]) for key_value in val.strip('{}}').split(",")}
             pass
         else:
             self.add_shutter_times(shutters)
