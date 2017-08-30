@@ -257,7 +257,6 @@ class RunViewer(object):
         self._shots_to_process_thread.daemon = True
         self._shots_to_process_thread.start()
 
-        self._tooltip = {'text': "", "pos": None}
 
     def mouseMovedEvent(self, position, ui):
         v = ui.scene().views()[0]
@@ -274,13 +273,9 @@ class RunViewer(object):
         if len(self.get_selected_shots_and_colours()) > 0:
             unscaled_t = coord_pos.x()
             if unscaled_t is not None:
-                self._tooltip["pos"] = QPoint(glob_pos.x(), glob_pos.y())
-                self._tooltip["text"] = "Curs: {:.4f}ms".format(unscaled_t * 1000)
-                QToolTip.showText(self._tooltip["pos"], self._tooltip["text"])
-            else:
-                self._tooltip["text"] = ""
-        else:
-            self._tooltip["text"] = ""
+                pos = QPoint(glob_pos.x(), glob_pos.y())
+                text = "Curs: {:.4f}ms".format(unscaled_t * 1000)
+                QToolTip.showText(pos, text)
 
     def _process_shots(self):
         while True:
