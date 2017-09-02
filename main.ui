@@ -369,6 +369,15 @@ QToolButton:hover:checked {
            </widget>
           </item>
           <item>
+           <widget class="QComboBox" name="markers_comboBox">
+            <item>
+             <property name="text">
+              <string>Select Markers</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item>
            <spacer name="horizontalSpacer_3">
             <property name="orientation">
              <enum>Qt::Horizontal</enum>

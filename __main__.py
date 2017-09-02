@@ -218,10 +218,12 @@ class RunViewer(object):
         time_axis_plot.setMouseEnabled(y=False)
         time_axis_plot.getAxis('left').setTicks([])  # hide y ticks in the left & right side. only show time axis
         time_axis_plot.getAxis('right').setTicks([])
+        time_axis_plot.setLabel('left', 'Slots')
         time_axis_plot_item = time_axis_plot.plot([0, 1], [0, 0], pen=(255, 255, 255))
         self._time_axis_plot = (time_axis_plot, time_axis_plot_item)
 
         self.all_markers = {}
+        self.all_marker_items = {}
         markers_plot = pg.PlotWidget(name='runviewer - markers')
         markers_plot.setMinimumHeight(17 * MARKERS_VERT_AMOUNT)  # 65)
         markers_plot.setMaximumHeight(17 * MARKERS_VERT_AMOUNT)  # 65)
@@ -231,6 +233,7 @@ class RunViewer(object):
         markers_plot.showAxis('right', True)
         markers_plot.getAxis('left').setTicks([])
         markers_plot.getAxis('right').setTicks([])
+        markers_plot.setLabel('left', 'Marker')
         markers_plot.setXLink('runviewer - time axis link')
         markers_plot.setMouseEnabled(y=False)
         markers_plot.setYRange(0, MARKERS_VERT_AMOUNT + 0.5)
@@ -283,6 +286,7 @@ class RunViewer(object):
         self.ui.enable_selected_shots.clicked.connect(self._enable_selected_shots)
         self.ui.disable_selected_shots.clicked.connect(self._disable_selected_shots)
         self.ui.add_shot.clicked.connect(self.on_add_shot)
+        self.ui.markers_comboBox.currentIndexChanged.connect(self._update_markers)
 
         self.ui.actionOpen_Shot.triggered.connect(self.on_add_shot)
         self.ui.actionQuit.triggered.connect(self.ui.close)
@@ -309,6 +313,41 @@ class RunViewer(object):
         self._shots_to_process_thread = threading.Thread(target=self._process_shots)
         self._shots_to_process_thread.daemon = True
         self._shots_to_process_thread.start()
+
+    def _update_markers(self, index):
+        for line, plot in self.all_marker_items.items():
+            plot.removeItem(line)
+        self.all_marker_items = {}
+
+        shot = self.ui.markers_comboBox.currentData()
+        self.all_markers = shot.markers if index > 0 else {}
+
+        last_t = 0.0
+        last_color = (0, 0, 0)
+        for i, (t, m) in enumerate(sorted(self.all_markers.items())):
+            color = m['color']
+            color = QColor(color[0], color[1], color[2])
+
+            line = self._markers_plot[0].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=Qt.DashLine))
+            marker_label = pg.TextItem(text=m['label'], color=color, anchor=(0, 1), fill=QColor(255, 255, 255, 200))
+            marker_label.setPos(t, (i % MARKERS_VERT_AMOUNT))
+            self._markers_plot[0].addItem(marker_label)  # add the marker label after the line so the text is in the foreground
+
+            self.all_marker_items[marker_label] = self._markers_plot[0]
+            self.all_marker_items[line] = self._markers_plot[0]
+
+            line = self._time_axis_plot[0].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=Qt.DashLine))
+            if not(i == 0 and t == 0):  # skip the first item if it's t=0
+                time_label = pg.TextItem(text=format_time(t - last_t), color=last_color, anchor=(0, 1), fill=QColor(255, 255, 255, 200))
+                time_label.setPos(last_t, (i % MARKERS_VERT_AMOUNT))
+                self._time_axis_plot[0].addItem(time_label)
+                self.all_marker_items[time_label] = self._time_axis_plot[0]
+            self.all_marker_items[line] = self._time_axis_plot[0]
+            last_t = t
+            last_color = color
+
+        self.update_plots()
+
 
     def _process_shots(self):
         while True:
@@ -368,9 +407,15 @@ class RunViewer(object):
                 icon = QIcon(pixmap)
                 colour_item.setData(lambda clist=self.shot_colour_delegate._colours, colour=colour: int_to_enum(clist, colour), Qt.UserRole)
                 colour_item.setData(icon, Qt.DecorationRole)
+                shot_combobox_index = self.ui.markers_comboBox.findData(item.data())
+                self.ui.markers_comboBox.model().item(shot_combobox_index).setEnabled(True)
             else:
                 # colour = None
                 # icon = None
+                shot_combobox_index = self.ui.markers_comboBox.findData(item.data())
+                self.ui.markers_comboBox.model().item(shot_combobox_index).setEnabled(False)
+                if shot_combobox_index == self.ui.markers_comboBox.currentIndex():
+                    self.ui.markers_comboBox.setCurrentIndex(0)
                 colour_item.setEditable(False)
 
             # model.setData(index, editor.itemIcon(editor.currentIndex()),
@@ -413,6 +458,9 @@ class RunViewer(object):
         # path_item.setEditable(False)
         # items.append(path_item)
         self.shot_model.appendRow(items)
+        self.ui.markers_comboBox.addItem(os.path.basename(shot.path), shot)
+        shot_combobox_index = self.ui.markers_comboBox.findData(shot)
+        self.ui.markers_comboBox.model().item(shot_combobox_index).setEnabled(False)
 
         # only do this if we are checking the shot we are adding
         # self.update_channels_treeview()
@@ -487,28 +535,6 @@ class RunViewer(object):
 
         self.update_plots()
 
-        if len(ticked_shots) > 0:
-            marker_labels = []
-            time_labels = []
-            last_t = 0.0
-            last_color = (0, 0, 0)
-            for i, (t, m) in enumerate(sorted(self.all_markers.items())):
-                color = m['color']
-                color = QColor(color[0], color[1], color[2])
-
-                self._markers_plot[0].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=Qt.DashLine))
-                marker_label = pg.TextItem(text=m['label'], color=color, anchor=(0, 1), fill=QColor(255, 255, 255, 200))
-                marker_label.setPos(t, (i % MARKERS_VERT_AMOUNT))
-                self._markers_plot[0].addItem(marker_label)  # add the marker label after the line so the text is in the foreground
-
-                self._time_axis_plot[0].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=Qt.DashLine))
-                if not(i == 0 and t == 0):  # skip the first item if it's t=0
-                    time_label = pg.TextItem(text=format_time(t - last_t), color=last_color, anchor=(0, 1), fill=QColor(255, 255, 255, 200))
-                    time_label.setPos(last_t, (i % MARKERS_VERT_AMOUNT))
-                    self._time_axis_plot[0].addItem(time_label)
-                last_t = t
-                last_color = color
-
     def update_plots(self):
         # get list of selected shots
         ticked_shots = self.get_selected_shots_and_colours()
@@ -521,22 +547,12 @@ class RunViewer(object):
 
         # find stop time of longest ticked shot
 
-        self.all_markers = {}
         largest_stop_time = 0
         stop_time_set = False
         for shot in ticked_shots.keys():
             if shot.stop_time > largest_stop_time:
                 largest_stop_time = shot.stop_time
                 stop_time_set = True
-            new_markers = {}
-            for key in shot.markers:
-                if key in self.all_markers.keys():
-                    if self.all_markers[key] != shot.markers[key]:
-                        self.all_markers[key] = "{} / {}".format(self.all_markers[key]['label'], shot.markers[key]['label'])
-                else:
-                    new_markers[key] = shot.markers[key]
-
-            self.all_markers.update(new_markers)
         if not stop_time_set:
             largest_stop_time = 1.0
 
@@ -573,7 +589,8 @@ class RunViewer(object):
                     for t, m in self.all_markers.items():
                         color = m['color']
                         color = QColor(color[0], color[1], color[2])
-                        self.plot_widgets[channel].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=Qt.DashLine))
+                        line = self.plot_widgets[channel].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=Qt.DashLine))
+                        self.all_marker_items[line] = self.plot_widgets[channel]
 
                 # If no, create one
                 else:
