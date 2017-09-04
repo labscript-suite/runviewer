@@ -92,7 +92,6 @@ SHOT_MODEL__CHECKBOX_INDEX = 1
 SHOT_MODEL__PATH_INDEX = 1
 CHANNEL_MODEL__CHECKBOX_INDEX = 0
 CHANNEL_MODEL__CHANNEL_INDEX = 0
-MARKERS_VERT_AMOUNT = 5
 
 
 def format_time(input_sec):
@@ -211,8 +210,8 @@ class RunViewer(object):
         # create a hidden plot widget that all plots can link their x-axis too
         time_axis_plot = pg.PlotWidget(name='runviewer - time axis link')
 
-        time_axis_plot.setMinimumHeight(40 + 12 * MARKERS_VERT_AMOUNT)
-        time_axis_plot.setMaximumHeight(40 + 12 * MARKERS_VERT_AMOUNT)
+        time_axis_plot.setMinimumHeight(120)
+        time_axis_plot.setMaximumHeight(120)
         time_axis_plot.setLabel('bottom', 'Time', units='s')
         time_axis_plot.showAxis('right', True)
         time_axis_plot.setMouseEnabled(y=False)
@@ -225,8 +224,8 @@ class RunViewer(object):
         self.all_markers = {}
         self.all_marker_items = {}
         markers_plot = pg.PlotWidget(name='runviewer - markers')
-        markers_plot.setMinimumHeight(17 * MARKERS_VERT_AMOUNT)  # 65)
-        markers_plot.setMaximumHeight(17 * MARKERS_VERT_AMOUNT)  # 65)
+        markers_plot.setMinimumHeight(120)
+        markers_plot.setMaximumHeight(120)
         markers_plot.showAxis('top', False)
         markers_plot.showAxis('bottom', False)
         markers_plot.showAxis('left', True)
@@ -236,7 +235,6 @@ class RunViewer(object):
         markers_plot.setLabel('left', 'Marker')
         markers_plot.setXLink('runviewer - time axis link')
         markers_plot.setMouseEnabled(y=False)
-        markers_plot.setYRange(0, MARKERS_VERT_AMOUNT + 0.5)
         markers_plot_item = markers_plot.plot([])
         self._markers_plot = (markers_plot, markers_plot_item)
 
@@ -322,29 +320,21 @@ class RunViewer(object):
         shot = self.ui.markers_comboBox.currentData()
         self.all_markers = shot.markers if index > 0 else {}
 
-        last_t = 0.0
-        last_color = (0, 0, 0)
+        times = sorted(list(self.all_markers.keys()))
         for i, (t, m) in enumerate(sorted(self.all_markers.items())):
+            if i < len(times)-1:
+                delta_t = times[i+1] - t
+            else:
+                delta_t = shot.stop_time - t
+
             color = m['color']
             color = QColor(color[0], color[1], color[2])
 
-            line = self._markers_plot[0].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=Qt.DashLine))
-            marker_label = pg.TextItem(text=m['label'], color=color, anchor=(0, 1), fill=QColor(255, 255, 255, 200))
-            marker_label.setPos(t, (i % MARKERS_VERT_AMOUNT))
-            self._markers_plot[0].addItem(marker_label)  # add the marker label after the line so the text is in the foreground
-
-            self.all_marker_items[marker_label] = self._markers_plot[0]
+            line = self._markers_plot[0].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=Qt.DashLine), label=m['label'], labelOpts= {"color": color, "fill": QColor(255, 255, 255, 255), "rotateAxis":(1, 0), "anchors": [(0.5, 0),(0.5, 0)]} )
             self.all_marker_items[line] = self._markers_plot[0]
 
-            line = self._time_axis_plot[0].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=Qt.DashLine))
-            if not(i == 0 and t == 0):  # skip the first item if it's t=0
-                time_label = pg.TextItem(text=format_time(t - last_t), color=last_color, anchor=(0, 1), fill=QColor(255, 255, 255, 200))
-                time_label.setPos(last_t, (i % MARKERS_VERT_AMOUNT))
-                self._time_axis_plot[0].addItem(time_label)
-                self.all_marker_items[time_label] = self._time_axis_plot[0]
+            line = self._time_axis_plot[0].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=Qt.DashLine), label=format_time(delta_t), labelOpts= {"color": color, "fill": QColor(255, 255, 255, 255), "rotateAxis":(1, 0), "anchors": [(0.5, 0),(0.5, 0)]} )
             self.all_marker_items[line] = self._time_axis_plot[0]
-            last_t = t
-            last_color = color
 
         self.update_plots()
 
@@ -409,6 +399,8 @@ class RunViewer(object):
                 colour_item.setData(icon, Qt.DecorationRole)
                 shot_combobox_index = self.ui.markers_comboBox.findData(item.data())
                 self.ui.markers_comboBox.model().item(shot_combobox_index).setEnabled(True)
+                if self.ui.markers_comboBox.currentIndex() == 0:
+                    self.ui.markers_comboBox.setCurrentIndex(shot_combobox_index)
             else:
                 # colour = None
                 # icon = None
@@ -557,7 +549,7 @@ class RunViewer(object):
             largest_stop_time = 1.0
 
         # Update the range of the link plot
-        self._time_axis_plot[1].setData([0, largest_stop_time], [0, 1e-9])
+        self._time_axis_plot[1].setData([0, largest_stop_time], [0, 0])
 
         # Update plots
         for i in range(self.channel_model.rowCount()):
