@@ -19,6 +19,8 @@ import logging
 import ctypes
 import socket
 from Queue import Queue
+import ast
+import pprint
 
 import signal
 # Quit on ctrl-c
@@ -214,6 +216,7 @@ class RunViewer(object):
 
         self.ui.actionOpen_Shot.setIcon(QIcon(':/qtutils/fugue/plus'))
         self.ui.actionQuit.setIcon(QIcon(':/qtutils/fugue/cross-button'))
+        self.ui.actionLoad_channel_config.setIcon(QIcon(':/qtutils/fugue/application-import'))
 
         # disable buttons that are not yet implemented to help avoid confusion!
         self.ui.delete_shot.setEnabled(False)
@@ -233,6 +236,8 @@ class RunViewer(object):
 
         self.ui.actionOpen_Shot.triggered.connect(self.on_add_shot)
         self.ui.actionQuit.triggered.connect(self.ui.close)
+        self.ui.actionLoad_channel_config.triggered.connect(self.on_load_channel_config)
+        self.ui.actionSave_channel_config.triggered.connect(self.on_save_channel_config)
 
         if os.name == 'nt':
             self.ui.newWindow.connect(set_win_appusermodel)
@@ -261,6 +266,47 @@ class RunViewer(object):
         while True:
             filepath = shots_to_process_queue.get()
             inmain_later(self.load_shot, filepath)
+
+    def on_load_channel_config(self):
+        config_file = QFileDialog.getOpenFileName(self.ui, "Select file to load", self.last_opened_shots_folder, "Config files (*.ini)")
+        if isinstance(config_file, tuple):
+            config_file, _ = config_file
+        if config_file:
+            runviewer_config = LabConfig(config_file)
+            try:
+                channels = ast.literal_eval(runviewer_config.get('runviewer_state', 'Channels'))
+            except (LabConfig.NoOptionError, LabConfig.NoSectionError):
+                channels = {}
+
+            for channel, checked in sorted(channels.items()):
+                check_items = self.channel_model.findItems(channel)
+                if len(check_items) == 0:
+                    items = []
+                    check_item = QStandardItem(channel)
+                    check_item.setEditable(False)
+                    check_item.setCheckable(True)
+                    items.append(check_item)
+                    check_item.setCheckState(Qt.Checked if checked else Qt.Unchecked)
+                    check_item.setEnabled(False)
+                    self.channel_model.appendRow(items)
+                else:
+                    check_items[0].setCheckState(Qt.Checked if checked else Qt.Unchecked)
+
+    def on_save_channel_config(self):
+        save_file = QFileDialog.getSaveFileName(self.ui, 'Select  file to save current channel configuration', self.last_opened_shots_folder, "config files (*.ini)")
+        if type(save_file) is tuple:
+            save_file, _ = save_file
+
+        if save_file:
+            runviewer_config = LabConfig(save_file)
+
+            channels = {}
+            for row in range(self.channel_model.rowCount()):
+                item = self.channel_model.item(row)
+                channels[item.text()] = item.checkState() == Qt.Checked
+
+            runviewer_config.set('runviewer_state', 'Channels', pprint.pformat(channels))
+
 
     def on_add_shot(self):
         selected_files = QFileDialog.getOpenFileNames(self.ui, "Select file to load", self.last_opened_shots_folder, "HDF5 files (*.h5 *.hdf5)")
