@@ -258,7 +258,7 @@ class RunViewer(object):
         self._shots_to_process_thread.start()
 
 
-    def mouseMovedEvent(self, position, ui):
+    def mouseMovedEvent(self, position, ui, name):
         v = ui.scene().views()[0]
         viewP = v.mapFromScene(position)
         glob_pos = ui.mapToGlobal(viewP)  # convert to Screen x
@@ -274,7 +274,7 @@ class RunViewer(object):
             unscaled_t = coord_pos.x()
             if unscaled_t is not None:
                 pos = QPoint(glob_pos.x(), glob_pos.y())
-                text = "Curs: {:.4f}ms".format(unscaled_t * 1000)
+                text = "Plot: {} \nTime: {:.4f}ms\nValue: {:.2f}".format(name, unscaled_t * 1000, coord_pos.y())
                 QToolTip.showText(pos, text)
 
     def _process_shots(self):
@@ -523,7 +523,7 @@ class RunViewer(object):
         self.plot_widgets[channel].showAxis('right', True)
         self.plot_widgets[channel].setXLink('runviewer - time axis link')
         self.plot_widgets[channel].sigXRangeChanged.connect(self.on_x_range_changed)
-        self.plot_widgets[channel].scene().sigMouseMoved.connect(lambda pos: self.mouseMovedEvent(pos, self.plot_widgets[channel]))
+        self.plot_widgets[channel].scene().sigMouseMoved.connect(lambda pos: self.mouseMovedEvent(pos, self.plot_widgets[channel], channel))
         self.ui.plot_layout.addWidget(self.plot_widgets[channel])
 
         has_units = False
