@@ -528,12 +528,12 @@ class RunViewer(object):
                             for t, val in shot.shutter_times[channel].items():
                                 scaled_t = t
                                 if val:  # val != 0, shutter open
-                                    line = self.plot_widgets[channel].addLine(x=scaled_t, pen=pg.mkPen(color=open_color, width=2., style=Qt.DotLine))
+                                    line = self.plot_widgets[channel].addLine(x=scaled_t, pen=pg.mkPen(color=open_color, width=4., style=Qt.DotLine))
                                     self.shutter_lines[channel][shot][1].append(line)
                                     if not shutters_checked:
                                         line.hide()
                                 else:  # else shutter close
-                                    line = self.plot_widgets[channel].addLine(x=scaled_t, pen=pg.mkPen(color=close_color, width=2., style=Qt.DotLine))
+                                    line = self.plot_widgets[channel].addLine(x=scaled_t, pen=pg.mkPen(color=close_color, width=4., style=Qt.DotLine))
                                     self.shutter_lines[channel][shot][0].append(line)
                                     if not shutters_checked:
                                         line.hide()
@@ -588,12 +588,12 @@ class RunViewer(object):
                     for t, val in shot.shutter_times[channel].items():
                         scaled_t = t
                         if val:  # val != 0, shutter open
-                            line = self.plot_widgets[channel].addLine(x=scaled_t, pen=pg.mkPen(color=open_color, width=2., style=Qt.DotLine))
+                            line = self.plot_widgets[channel].addLine(x=scaled_t, pen=pg.mkPen(color=open_color, width=4., style=Qt.DotLine))
                             self.shutter_lines[channel][shot][1].append(line)
                             if not shutters_checked:
                                 line.hide()
                         else:  # else shutter close
-                            line = self.plot_widgets[channel].addLine(x=scaled_t, pen=pg.mkPen(color=close_color, width=2., style=Qt.DotLine))
+                            line = self.plot_widgets[channel].addLine(x=scaled_t, pen=pg.mkPen(color=close_color, width=4., style=Qt.DotLine))
                             self.shutter_lines[channel][shot][0].append(line)
                             if not shutters_checked:
                                 line.hide()
