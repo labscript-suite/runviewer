@@ -216,7 +216,8 @@ class RunViewer(object):
 
         self.ui.actionOpen_Shot.setIcon(QIcon(':/qtutils/fugue/plus'))
         self.ui.actionQuit.setIcon(QIcon(':/qtutils/fugue/cross-button'))
-        self.ui.actionLoad_channel_config.setIcon(QIcon(':/qtutils/fugue/application-import'))
+        self.ui.actionLoad_channel_config.setIcon(QIcon(':/qtutils/fugue/folder-open'))
+        self.ui.actionSave_channel_config.setIcon(QIcon(':/qtutils/fugue/disk'))
 
         # disable buttons that are not yet implemented to help avoid confusion!
         self.ui.delete_shot.setEnabled(False)
