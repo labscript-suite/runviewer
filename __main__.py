@@ -251,6 +251,7 @@ class RunViewer(object):
         self.plot_items = {}
 
         self.last_opened_shots_folder = exp_config.get('paths', 'experiment_shot_storage')
+        self.experiment_shot_storage =  exp_config.get('paths', 'experiment_shot_storage')
 
         # start resample thread
         self._resample = False
@@ -269,7 +270,7 @@ class RunViewer(object):
             inmain_later(self.load_shot, filepath)
 
     def on_load_channel_config(self):
-        config_file = QFileDialog.getOpenFileName(self.ui, "Select file to load", self.last_opened_shots_folder, "Config files (*.ini)")
+        config_file = QFileDialog.getOpenFileName(self.ui, "Select file to load", self.experiment_shot_storage, "Config files (*.ini)")
         if isinstance(config_file, tuple):
             config_file, _ = config_file
         if config_file:
@@ -294,7 +295,7 @@ class RunViewer(object):
                     check_items[0].setCheckState(Qt.Checked if checked else Qt.Unchecked)
 
     def on_save_channel_config(self):
-        save_file = QFileDialog.getSaveFileName(self.ui, 'Select  file to save current channel configuration', self.last_opened_shots_folder, "config files (*.ini)")
+        save_file = QFileDialog.getSaveFileName(self.ui, 'Select  file to save current channel configuration', self.experiment_shot_storage, "config files (*.ini)")
         if type(save_file) is tuple:
             save_file, _ = save_file
 
