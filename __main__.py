@@ -338,7 +338,7 @@ class RunViewer(object):
                     check_shutter.setEnabled(True)
                 else:
                     check_shutter.setEnabled(False)
-                    check_shutter.setToolTip("This shot doesn't contain shutter delays")
+                    check_shutter.setToolTip("This shot doesn't contain shutter markers")
             else:
                 # colour = None
                 # icon = None
@@ -1020,8 +1020,9 @@ class Shot(object):
             self.device_names = file['devices'].keys()
 
             # Get Shutter Calibrations
-            for name, open_delay, close_delay in numpy.array(file['calibrations']['Shutter']):
-                self._shutter_calibrations[name] = [open_delay, close_delay]
+            if 'calibrations' in file and 'Shutter' in file['calibrations']:
+                for name, open_delay, close_delay in numpy.array(file['calibrations']['Shutter']):
+                    self._shutter_calibrations[name] = [open_delay, close_delay]
 
     def delete_cache(self):
         self._channels = None
