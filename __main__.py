@@ -178,6 +178,7 @@ class RunViewer(object):
         self.shot_model.setHorizontalHeaderLabels(['colour', 'shutters', 'path'])
         self.ui.shot_treeview.setModel(self.shot_model)
         self.ui.shot_treeview.resizeColumnToContents(0)
+        self.ui.shot_treeview.resizeColumnToContents(1)
         self.shot_model.itemChanged.connect(self.on_shot_selection_changed)
         self.shot_colour_delegate = ColourDelegate(self.ui.shot_treeview)
         self.ui.shot_treeview.setItemDelegateForColumn(0, self.shot_colour_delegate)
@@ -318,6 +319,7 @@ class RunViewer(object):
             checked = item.checkState()
             row = self.shot_model.indexFromItem(item).row()
             colour_item = self.shot_model.item(row, SHOT_MODEL__COLOUR_INDEX)
+            check_shutter = self.shot_model.item(row, SHOT_MODEL__SHUTTER_INDEX)
 
             if checked:
                 colour = colour_item.data(Qt.UserRole)
@@ -332,10 +334,16 @@ class RunViewer(object):
                 icon = QIcon(pixmap)
                 colour_item.setData(lambda clist=self.shot_colour_delegate._colours, colour=colour: int_to_enum(clist, colour), Qt.UserRole)
                 colour_item.setData(icon, Qt.DecorationRole)
+                if item.data().shutter_times != {}:
+                    check_shutter.setEnabled(True)
+                else:
+                    check_shutter.setEnabled(False)
+                    check_shutter.setToolTip("This shot doesn't contain shutter delays")
             else:
                 # colour = None
                 # icon = None
                 colour_item.setEditable(False)
+                check_shutter.setEnabled(False)
 
             # model.setData(index, editor.itemIcon(editor.currentIndex()),
             # model.setData(index, editor.itemData(editor.currentIndex()), Qt.UserRole)
@@ -371,6 +379,7 @@ class RunViewer(object):
         check_shutter = QStandardItem()
         check_shutter.setCheckable(True)
         check_shutter.setCheckState(Qt.Unchecked)  # options are Qt.Checked OR Qt.Unchecked
+        check_shutter.setEnabled(False)
         check_shutter.setToolTip("Toggle shutter markers")
         items.append(check_shutter)
 
@@ -1041,11 +1050,12 @@ class Shot(object):
         for name, open_state in shutters:
             x_values, y_values = self._traces[name]
             values = zip(x_values, y_values)
-            change_values = [values[0]]
-            for i in range(1, len(values)):
-                if values[i][1] != values[i - 1][1]:
-                    change_values.append(values[i])
-            self._shutter_times[name] = {x_value + (self._shutter_calibrations[name][0] if y_value == open_state else self._shutter_calibrations[name][1]): 1 if y_value == open_state else 0 for x_value, y_value in change_values}
+            if len(values) > 0:
+                change_values = [values[0]]
+                for i in range(1, len(values)):
+                    if values[i][1] != values[i - 1][1]:
+                        change_values.append(values[i])
+                self._shutter_times[name] = {x_value + (self._shutter_calibrations[name][0] if y_value == open_state else self._shutter_calibrations[name][1]): 1 if y_value == open_state else 0 for x_value, y_value in change_values}
 
     def _load_device(self, device, clock=None):
         try:
