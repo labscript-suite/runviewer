@@ -88,7 +88,8 @@ def set_win_appusermodel(window_id):
 
 
 SHOT_MODEL__COLOUR_INDEX = 0
-SHOT_MODEL__CHECKBOX_INDEX = 1
+SHOT_MODEL__SHUTTER_INDEX = 1
+SHOT_MODEL__CHECKBOX_INDEX = 2
 SHOT_MODEL__PATH_INDEX = 1
 CHANNEL_MODEL__CHECKBOX_INDEX = 0
 CHANNEL_MODEL__CHANNEL_INDEX = 0
@@ -174,7 +175,7 @@ class RunViewer(object):
 
         # setup shot treeview model
         self.shot_model = QStandardItemModel()
-        self.shot_model.setHorizontalHeaderLabels(['colour', 'path'])
+        self.shot_model.setHorizontalHeaderLabels(['colour', 'shutters', 'path'])
         self.ui.shot_treeview.setModel(self.shot_model)
         self.ui.shot_treeview.resizeColumnToContents(0)
         self.shot_model.itemChanged.connect(self.on_shot_selection_changed)
@@ -243,6 +244,7 @@ class RunViewer(object):
         #self._channels_list = {}
         self.plot_widgets = {}
         self.plot_items = {}
+        self.shutter_lines = {}
 
         self.last_opened_shots_folder = exp_config.get('paths', 'experiment_shot_storage')
 
@@ -261,6 +263,21 @@ class RunViewer(object):
         while True:
             filepath = shots_to_process_queue.get()
             inmain_later(self.load_shot, filepath)
+
+    def on_toggle_shutter(self, checked, current_shot):
+        for channel in self.shutter_lines:
+            for shot in self.shutter_lines[channel]:
+                if shot == current_shot:
+                    for line in self.shutter_lines[channel][shot][0]:
+                        if checked:
+                            line.show()
+                        else:
+                            line.hide()
+                    for line in self.shutter_lines[channel][shot][1]:
+                        if checked:
+                            line.show()
+                        else:
+                            line.hide()
 
     def on_add_shot(self):
         selected_files = QFileDialog.getOpenFileNames(self.ui, "Select file to load", self.last_opened_shots_folder, "HDF5 files (*.h5 *.hdf5)")
@@ -301,6 +318,7 @@ class RunViewer(object):
             checked = item.checkState()
             row = self.shot_model.indexFromItem(item).row()
             colour_item = self.shot_model.item(row, SHOT_MODEL__COLOUR_INDEX)
+            check_shutter = self.shot_model.item(row, SHOT_MODEL__SHUTTER_INDEX)
 
             if checked:
                 colour = colour_item.data(Qt.UserRole)
@@ -315,10 +333,16 @@ class RunViewer(object):
                 icon = QIcon(pixmap)
                 colour_item.setData(lambda clist=self.shot_colour_delegate._colours, colour=colour: int_to_enum(clist, colour), Qt.UserRole)
                 colour_item.setData(icon, Qt.DecorationRole)
+                if item.data().shutter_times != {}:
+                    check_shutter.setEnabled(True)
+                else:
+                    check_shutter.setEnabled(False)
+                    check_shutter.setToolTip("This shot doesn't contain shutter markers")
             else:
                 # colour = None
                 # icon = None
                 colour_item.setEditable(False)
+                check_shutter.setEnabled(False)
 
             # model.setData(index, editor.itemIcon(editor.currentIndex()),
             # model.setData(index, editor.itemData(editor.currentIndex()), Qt.UserRole)
@@ -336,6 +360,9 @@ class RunViewer(object):
                     if shot == current_shot:
                         colour = item.data(Qt.UserRole)
                         self.plot_items[channel][shot].setPen(pg.mkPen(QColor(colour()), width=2))
+        elif self.shot_model.indexFromItem(item).column() == SHOT_MODEL__SHUTTER_INDEX:
+            current_shot = self.shot_model.item(self.shot_model.indexFromItem(item).row(), SHOT_MODEL__CHECKBOX_INDEX).data()
+            self.on_toggle_shutter(item.checkState(), current_shot)
 
     def load_shot(self, filepath):
         shot = Shot(filepath)
@@ -347,6 +374,13 @@ class RunViewer(object):
         colour_item.setEditable(False)
         colour_item.setToolTip('Double-click to change colour')
         items.append(colour_item)
+
+        check_shutter = QStandardItem()
+        check_shutter.setCheckable(True)
+        check_shutter.setCheckState(Qt.Unchecked)  # options are Qt.Checked OR Qt.Unchecked
+        check_shutter.setEnabled(False)
+        check_shutter.setToolTip("Toggle shutter markers")
+        items.append(check_shutter)
 
         check_item = QStandardItem(shot.path)
         check_item.setEditable(False)
@@ -370,10 +404,11 @@ class RunViewer(object):
         for i in range(self.shot_model.rowCount()):
             item = self.shot_model.item(i, SHOT_MODEL__CHECKBOX_INDEX)
             colour_item = self.shot_model.item(i, SHOT_MODEL__COLOUR_INDEX)
+            shutter_item = self.shot_model.item(i, SHOT_MODEL__SHUTTER_INDEX)
             if item.checkState() == Qt.Checked:
                 shot = item.data()
                 colour_item_data = colour_item.data(Qt.UserRole)
-                ticked_shots[shot] = colour_item_data()
+                ticked_shots[shot] = (colour_item_data(), shutter_item.checkState())
         return ticked_shots
 
     def update_channels_treeview(self):
@@ -472,17 +507,27 @@ class RunViewer(object):
                     for shot in self.plot_items[channel]:
                         if shot not in ticked_shots.keys():
                             self.plot_widgets[channel].removeItem(self.plot_items[channel][shot])
+                            # Remove Shutter Markers of unticked Shots
+                            if shot in self.shutter_lines[channel]:
+                                for line in self.shutter_lines[channel][shot][0]:
+                                    self.plot_widgets[channel].removeItem(line)
+                                for line in self.shutter_lines[channel][shot][1]:
+                                    self.plot_widgets[channel].removeItem(line)
+                                self.shutter_lines[channel].pop(shot)
                             to_delete.append(shot)
                     for shot in to_delete:
                         del self.plot_items[channel][shot]
 
                     # do we need to add any plot items for shots that were not previously selected?
-                    for shot, colour in ticked_shots.items():
+                    for shot, (colour, shutters_checked) in ticked_shots.items():
                         if shot not in self.plot_items[channel]:
                             # plot_item = self.plot_widgets[channel].plot(shot.traces[channel][0], shot.traces[channel][1], pen=pg.mkPen(QColor(colour), width=2))
                             # Add empty plot as it the custom resampling we do will happen quicker if we don't attempt to first plot all of the data
                             plot_item = self.plot_widgets[channel].plot([0, 0], [0], pen=pg.mkPen(QColor(colour), width=2), stepMode=True)
                             self.plot_items[channel][shot] = plot_item
+
+                        # Add Shutter Markers of newly ticked Shots
+                        self.add_shutter_markers(shot, channel, shutters_checked)
 
                 # If no, create one
                 else:
@@ -504,10 +549,11 @@ class RunViewer(object):
         self.plot_widgets[channel].setXLink('runviewer - time axis link')
         self.plot_widgets[channel].sigXRangeChanged.connect(self.on_x_range_changed)
         self.ui.plot_layout.addWidget(self.plot_widgets[channel])
+        self.shutter_lines[channel] = {}  # initialize Storage for shutter lines
 
         has_units = False
         units = ''
-        for shot, colour in ticked_shots.items():
+        for shot, (colour, shutters_checked) in ticked_shots.items():
             if channel in shot.traces:
                 # plot_item = self.plot_widgets[channel].plot(shot.traces[channel][0], shot.traces[channel][1], pen=pg.mkPen(QColor(colour), width=2))
                 # Add empty plot as it the custom resampling we do will happen quicker if we don't attempt to first plot all of the data
@@ -519,10 +565,33 @@ class RunViewer(object):
                     has_units = True
                     units = shot.traces[channel][2]
 
+                # Add Shutter Markers of ticked Shots
+                self.add_shutter_markers(shot, channel, shutters_checked)
+
         if has_units:
             self.plot_widgets[channel].setLabel('left', channel, units=units)
         else:
             self.plot_widgets[channel].setLabel('left', channel)
+
+    def add_shutter_markers(self, shot, channel, shutters_checked):
+        if shot not in self.shutter_lines[channel] and channel in shot.shutter_times:
+            self.shutter_lines[channel][shot] = [[], []]
+
+            open_color = QColor(0, 255, 0)
+            close_color = QColor(255, 0, 0)
+
+            for t, val in shot.shutter_times[channel].items():
+                scaled_t = t
+                if val:  # val != 0, shutter open
+                    line = self.plot_widgets[channel].addLine(x=scaled_t, pen=pg.mkPen(color=open_color, width=4., style=Qt.DotLine))
+                    self.shutter_lines[channel][shot][1].append(line)
+                    if not shutters_checked:
+                        line.hide()
+                else:  # else shutter close
+                    line = self.plot_widgets[channel].addLine(x=scaled_t, pen=pg.mkPen(color=close_color, width=4., style=Qt.DotLine))
+                    self.shutter_lines[channel][shot][0].append(line)
+                    if not shutters_checked:
+                        line.hide()
 
     def on_x_range_changed(self, *args):
         # print 'x range changed'
@@ -743,7 +812,7 @@ class RunViewer(object):
                 self._resample = False
                 # print 'resampling'
                 ticked_shots = inmain(self.get_selected_shots_and_colours)
-                for shot, colour in ticked_shots.items():
+                for shot, (colour, shutters_checked) in ticked_shots.items():
                     for channel in shot.traces:
                         if self.channel_checked_and_enabled(channel):
                             try:
@@ -911,6 +980,10 @@ class Shot(object):
         # store list of channels
         self._channels = None
 
+        # store list of shutter changes and callibrations
+        self._shutter_times = None
+        self._shutter_calibrations = {}
+
         # TODO: Get this dynamically
         device_list = ['PulseBlaster', 'NI_PCIe_6363', 'NI_PCI_6733']
 
@@ -927,6 +1000,11 @@ class Shot(object):
 
             self.device_names = file['devices'].keys()
 
+            # Get Shutter Calibrations
+            if 'calibrations' in file and 'Shutter' in file['calibrations']:
+                for name, open_delay, close_delay in numpy.array(file['calibrations']['Shutter']):
+                    self._shutter_calibrations[name] = [open_delay, close_delay]
+
     def delete_cache(self):
         self._channels = None
         self._traces = None
@@ -936,6 +1014,8 @@ class Shot(object):
             self._channels = {}
         if self._traces is None:
             self._traces = {}
+        if self._shutter_times is None:
+            self._shutter_times = {}
 
         # Let's walk the connection table, starting with the master pseudoclock
         master_pseudoclock_device = self.connection_table.find_by_name(self.master_pseudoclock_name)
@@ -946,6 +1026,17 @@ class Shot(object):
         name = unicode(name)
         self._channels[name] = {'device_name': parent_device_name, 'port': connection}
         self._traces[name] = trace
+
+    # Temporary solution to physical shutter times
+    def add_shutter_times(self, shutters):
+        for name, open_state in shutters:
+            x_values, y_values = self._traces[name]
+            if len(x_values) > 0:
+                change_indices = numpy.where(y_values[:-1] != y_values[1:])[0]
+                change_indices += 1 # use the index of the value that is changed to
+                change_values = zip(x_values[change_indices], y_values[change_indices])
+                change_values.insert(0, (x_values[0], y_values[0])) # insert first value
+                self._shutter_times[name] = {x_value + (self._shutter_calibrations[name][0] if y_value == open_state else self._shutter_calibrations[name][1]): 1 if y_value == open_state else 0 for x_value, y_value in change_values}
 
     def _load_device(self, device, clock=None):
         try:
@@ -972,6 +1063,20 @@ class Shot(object):
             else:
                 print 'Failed to load device (unknown name, device object does not have attribute name)'
 
+        # get all Shutters with their open_state
+        try:
+            shutters = [(name, child_con.properties['open_state']) for name, child_con in device.child_list.items() if child_con.device_class == "Shutter"]
+        except KeyError:
+            # no openstate in connection table
+            with h5py.File(self.path, 'r') as file:
+                if "runviewer" in file:
+                    if "shutter_times" in file["runviewer"]:
+                        for name, val in file["runviewer"]["shutter_times"].attrs.items():
+                            self._shutter_times[name] = {float(key_value.split(":")[0]): int(key_value.split(":")[1]) for key_value in val.strip('{}}').split(",")}
+            pass
+        else:
+            self.add_shutter_times(shutters)
+
     @property
     def channels(self):
         if self._channels is None:
@@ -990,6 +1095,12 @@ class Shot(object):
         if self._traces is None:
             self._load()
         return self._traces
+
+    @property
+    def shutter_times(self):
+        if self._shutter_times is None:
+            self._load()
+        return self._shutter_times
 
 
 class TempShot(Shot):
