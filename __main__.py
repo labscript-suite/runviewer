@@ -177,7 +177,7 @@ class RunViewer(object):
         self.shot_model = QStandardItemModel()
         self.shot_model.setHorizontalHeaderLabels(['colour', 'shutters', 'path'])
         self.ui.shot_treeview.setModel(self.shot_model)
-        self.ui.shot_treeview.resizeColumnToContents(0)
+        self.ui.shot_treeview.resizeColumnToContents(1)
         self.shot_model.itemChanged.connect(self.on_shot_selection_changed)
         self.shot_colour_delegate = ColourDelegate(self.ui.shot_treeview)
         self.ui.shot_treeview.setItemDelegateForColumn(0, self.shot_colour_delegate)
