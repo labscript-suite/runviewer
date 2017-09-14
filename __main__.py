@@ -1032,7 +1032,7 @@ class Shot(object):
         for name, open_state in shutters:
             x_values, y_values = self._traces[name]
             if len(x_values) > 0:
-                change_indices = np.where(y_values[:-1] != y_values[1:])[0]
+                change_indices = numpy.where(y_values[:-1] != y_values[1:])[0]
                 change_indices += 1 # use the index of the value that is changed to
                 change_values = zip(x_values[change_indices], y_values[change_indices])
                 change_values.insert(0, (x_values[0], y_values[0])) # insert first value
