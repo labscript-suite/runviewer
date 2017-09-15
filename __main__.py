@@ -252,8 +252,15 @@ class RunViewer(object):
         self.plot_items = {}
         self.shutter_lines = {}
 
+        try:
+            self.default_config_path = os.path.join(exp_config.get('DEFAULT', 'app_saved_configs'), 'runviewer')
+        except LabConfig.NoOptionError:
+            exp_config.set('DEFAULT', 'app_saved_configs', os.path.join('%(labscript_suite)s', 'userlib', 'app_saved_configs', '%(experiment_name)s'))
+            self.default_config_path = os.path.join(exp_config.get('DEFAULT', 'app_saved_configs'), 'runviewer')
+        if not os.path.exists(self.default_config_path):
+            os.makedirs(self.default_config_path)
+
         self.last_opened_shots_folder = exp_config.get('paths', 'experiment_shot_storage')
-        self.experiment_shot_storage =  exp_config.get('paths', 'experiment_shot_storage')
 
         # start resample thread
         self._resample = False
@@ -272,7 +279,7 @@ class RunViewer(object):
             inmain_later(self.load_shot, filepath)
 
     def on_load_channel_config(self):
-        config_file = QFileDialog.getOpenFileName(self.ui, "Select file to load", self.experiment_shot_storage, "Config files (*.ini)")
+        config_file = QFileDialog.getOpenFileName(self.ui, "Select file to load", self.default_config_path, "Config files (*.ini)")
         if isinstance(config_file, tuple):
             config_file, _ = config_file
         if config_file:
@@ -297,7 +304,7 @@ class RunViewer(object):
                     check_items[0].setCheckState(Qt.Checked if checked else Qt.Unchecked)
 
     def on_save_channel_config(self):
-        save_file = QFileDialog.getSaveFileName(self.ui, 'Select  file to save current channel configuration', self.experiment_shot_storage, "config files (*.ini)")
+        save_file = QFileDialog.getSaveFileName(self.ui, 'Select  file to save current channel configuration', self.default_config_path, "config files (*.ini)")
         if type(save_file) is tuple:
             save_file, _ = save_file
 
