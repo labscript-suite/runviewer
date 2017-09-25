@@ -289,7 +289,7 @@ class RunViewer(object):
             except (LabConfig.NoOptionError, LabConfig.NoSectionError):
                 channels = {}
 
-            for channel, checked in channels:
+            for row, (channel, checked) in enumerate(channels):
                 check_items = self.channel_model.findItems(channel)
                 if len(check_items) == 0:
                     items = []
@@ -299,9 +299,12 @@ class RunViewer(object):
                     items.append(check_item)
                     check_item.setCheckState(Qt.Checked if checked else Qt.Unchecked)
                     check_item.setEnabled(False)
-                    self.channel_model.appendRow(items)
+                    self.channel_model.insertRow(row, items)
                 else:
-                    check_items[0].setCheckState(Qt.Checked if checked else Qt.Unchecked)
+                    check_item = check_items[0]
+                    check_item.setCheckState(Qt.Checked if checked else Qt.Unchecked)
+                    self.channel_model.takeRow(check_item.row())
+                    self.channel_model.insertRow(row, check_item)
 
     def on_save_channel_config(self):
         save_file = QFileDialog.getSaveFileName(self.ui, 'Select  file to save current channel configuration', self.default_config_path, "config files (*.ini)")
