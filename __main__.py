@@ -289,7 +289,7 @@ class RunViewer(object):
             except (LabConfig.NoOptionError, LabConfig.NoSectionError):
                 channels = {}
 
-            for channel, checked in sorted(channels.items()):
+            for channel, checked in channels:
                 check_items = self.channel_model.findItems(channel)
                 if len(check_items) == 0:
                     items = []
@@ -311,10 +311,10 @@ class RunViewer(object):
         if save_file:
             runviewer_config = LabConfig(save_file)
 
-            channels = {}
+            channels = []
             for row in range(self.channel_model.rowCount()):
                 item = self.channel_model.item(row)
-                channels[item.text()] = item.checkState() == Qt.Checked
+                channels.append((item.text(), item.checkState() == Qt.Checked))
 
             runviewer_config.set('runviewer_state', 'Channels', pprint.pformat(channels))
 
