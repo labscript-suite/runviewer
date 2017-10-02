@@ -19,6 +19,8 @@ import logging
 import ctypes
 import socket
 from Queue import Queue
+import ast
+import pprint
 
 import signal
 # Quit on ctrl-c
@@ -215,6 +217,8 @@ class RunViewer(object):
 
         self.ui.actionOpen_Shot.setIcon(QIcon(':/qtutils/fugue/plus'))
         self.ui.actionQuit.setIcon(QIcon(':/qtutils/fugue/cross-button'))
+        self.ui.actionLoad_channel_config.setIcon(QIcon(':/qtutils/fugue/folder-open'))
+        self.ui.actionSave_channel_config.setIcon(QIcon(':/qtutils/fugue/disk'))
 
         # disable buttons that are not yet implemented to help avoid confusion!
         self.ui.delete_shot.setEnabled(False)
@@ -234,6 +238,8 @@ class RunViewer(object):
 
         self.ui.actionOpen_Shot.triggered.connect(self.on_add_shot)
         self.ui.actionQuit.triggered.connect(self.ui.close)
+        self.ui.actionLoad_channel_config.triggered.connect(self.on_load_channel_config)
+        self.ui.actionSave_channel_config.triggered.connect(self.on_save_channel_config)
 
         if os.name == 'nt':
             self.ui.newWindow.connect(set_win_appusermodel)
@@ -245,6 +251,14 @@ class RunViewer(object):
         self.plot_widgets = {}
         self.plot_items = {}
         self.shutter_lines = {}
+
+        try:
+            self.default_config_path = os.path.join(exp_config.get('DEFAULT', 'app_saved_configs'), 'runviewer')
+        except LabConfig.NoOptionError:
+            exp_config.set('DEFAULT', 'app_saved_configs', os.path.join('%(labscript_suite)s', 'userlib', 'app_saved_configs', '%(experiment_name)s'))
+            self.default_config_path = os.path.join(exp_config.get('DEFAULT', 'app_saved_configs'), 'runviewer')
+        if not os.path.exists(self.default_config_path):
+            os.makedirs(self.default_config_path)
 
         self.last_opened_shots_folder = exp_config.get('paths', 'experiment_shot_storage')
 
@@ -263,6 +277,49 @@ class RunViewer(object):
         while True:
             filepath = shots_to_process_queue.get()
             inmain_later(self.load_shot, filepath)
+
+    def on_load_channel_config(self):
+        config_file = QFileDialog.getOpenFileName(self.ui, "Select file to load", self.default_config_path, "Config files (*.ini)")
+        if isinstance(config_file, tuple):
+            config_file, _ = config_file
+        if config_file:
+            runviewer_config = LabConfig(config_file)
+            try:
+                channels = ast.literal_eval(runviewer_config.get('runviewer_state', 'Channels'))
+            except (LabConfig.NoOptionError, LabConfig.NoSectionError):
+                channels = {}
+
+            for row, (channel, checked) in enumerate(channels):
+                check_items = self.channel_model.findItems(channel)
+                if len(check_items) == 0:
+                    items = []
+                    check_item = QStandardItem(channel)
+                    check_item.setEditable(False)
+                    check_item.setCheckable(True)
+                    items.append(check_item)
+                    check_item.setCheckState(Qt.Checked if checked else Qt.Unchecked)
+                    check_item.setEnabled(False)
+                    self.channel_model.insertRow(row, items)
+                else:
+                    check_item = check_items[0]
+                    check_item.setCheckState(Qt.Checked if checked else Qt.Unchecked)
+                    self.channel_model.takeRow(check_item.row())
+                    self.channel_model.insertRow(row, check_item)
+
+    def on_save_channel_config(self):
+        save_file = QFileDialog.getSaveFileName(self.ui, 'Select  file to save current channel configuration', self.default_config_path, "config files (*.ini)")
+        if type(save_file) is tuple:
+            save_file, _ = save_file
+
+        if save_file:
+            runviewer_config = LabConfig(save_file)
+
+            channels = []
+            for row in range(self.channel_model.rowCount()):
+                item = self.channel_model.item(row)
+                channels.append((item.text(), item.checkState() == Qt.Checked))
+
+            runviewer_config.set('runviewer_state', 'Channels', pprint.pformat(channels))
 
     def on_toggle_shutter(self, checked, current_shot):
         for channel in self.shutter_lines:
@@ -550,6 +607,7 @@ class RunViewer(object):
         self.plot_widgets[channel].sigXRangeChanged.connect(self.on_x_range_changed)
         self.ui.plot_layout.addWidget(self.plot_widgets[channel])
         self.shutter_lines[channel] = {}  # initialize Storage for shutter lines
+        self.plot_items.setdefault(channel, {})
 
         has_units = False
         units = ''
@@ -558,7 +616,6 @@ class RunViewer(object):
                 # plot_item = self.plot_widgets[channel].plot(shot.traces[channel][0], shot.traces[channel][1], pen=pg.mkPen(QColor(colour), width=2))
                 # Add empty plot as it the custom resampling we do will happen quicker if we don't attempt to first plot all of the data
                 plot_item = self.plot_widgets[channel].plot([0, 0], [0], pen=pg.mkPen(QColor(colour), width=2), stepMode=True)
-                self.plot_items.setdefault(channel, {})
                 self.plot_items[channel][shot] = plot_item
 
                 if len(shot.traces[channel]) == 3:
