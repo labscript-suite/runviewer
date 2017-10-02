@@ -607,6 +607,7 @@ class RunViewer(object):
         self.plot_widgets[channel].sigXRangeChanged.connect(self.on_x_range_changed)
         self.ui.plot_layout.addWidget(self.plot_widgets[channel])
         self.shutter_lines[channel] = {}  # initialize Storage for shutter lines
+        self.plot_items.setdefault(channel, {})
 
         has_units = False
         units = ''
@@ -615,7 +616,6 @@ class RunViewer(object):
                 # plot_item = self.plot_widgets[channel].plot(shot.traces[channel][0], shot.traces[channel][1], pen=pg.mkPen(QColor(colour), width=2))
                 # Add empty plot as it the custom resampling we do will happen quicker if we don't attempt to first plot all of the data
                 plot_item = self.plot_widgets[channel].plot([0, 0], [0], pen=pg.mkPen(QColor(colour), width=2), stepMode=True)
-                self.plot_items.setdefault(channel, {})
                 self.plot_items[channel][shot] = plot_item
 
                 if len(shot.traces[channel]) == 3:
