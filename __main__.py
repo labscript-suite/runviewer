@@ -196,6 +196,7 @@ class RunViewer(object):
         hidden_plot.setMinimumHeight(40)
         hidden_plot.setMaximumHeight(40)
         hidden_plot.setLabel('bottom', 'Time', units='s')
+        hidden_plot.setLabel('left', " ")
         hidden_plot.showAxis('right', True)
         hidden_plot_item = hidden_plot.plot([0, 1], [0, 0])
         self._hidden_plot = (hidden_plot, hidden_plot_item)
