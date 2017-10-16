@@ -212,28 +212,32 @@ moduleinit(void)
 
 #if PY_MAJOR_VERSION >= 3
     m = PyModule_Create(&moduledef);
+    import_array();
 #else
     m = Py_InitModule3("resample",
-                        module_functions, module___doc__);
+                        module_functions, "");
 #endif
-
+	
     if (m == NULL)
         return NULL;
 
-    import_array();
   return m;
 }
 
 #if PY_MAJOR_VERSION < 3
     PyMODINIT_FUNC
-    init_resample(void)
+    initresample(void)
     {
         moduleinit();
+        import_array();
     }
 #else
     PyMODINIT_FUNC
     PyInit_resample(void)
     {
-        return moduleinit();
+    	PyObject *m;
+        m = moduleinit();
+        import_array();
+        return m;
     }
 #endif
