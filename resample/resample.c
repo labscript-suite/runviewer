@@ -191,30 +191,49 @@ module_functions[] = {
     {NULL}
 };
 
+#if PY_MAJOR_VERSION >= 3
+  static struct PyModuleDef moduledef = {
+    PyModuleDef_HEAD_INIT,
+    "resample", /* m_name */
+    "",      /* m_doc */
+    -1,                  /* m_size */
+    module_functions,    /* m_methods */
+    NULL,                /* m_reload */
+    NULL,                /* m_traverse */
+    NULL,                /* m_clear */
+    NULL,                /* m_free */
+  };
+#endif
+
+static PyObject *
+moduleinit(void)
+{
+    PyObject *m;
 
 #if PY_MAJOR_VERSION >= 3
-    static struct PyModuleDef moduledef = {
-        PyModuleDef_HEAD_INIT,
-        "resample",     /* m_name */
-        "",  /* m_doc */
-        -1,                  /* m_size */
-        module_functions,    /* m_methods */
-        NULL,                /* m_reload */
-        NULL,                /* m_traverse */
-        NULL,                /* m_clear */
-        NULL,                /* m_free */
-    };
-
-int PyInit_resample(void)
-{
-    PyModule_Create(&moduledef);
-    import_array();
-}
-
+    m = PyModule_Create(&moduledef);
 #else
-void initresample(void)
-{
-    Py_InitModule3("resample", module_functions, "");
+    m = Py_InitModule3("resample",
+                        module_functions, module___doc__);
+#endif
+
+    if (m == NULL)
+        return NULL;
+
     import_array();
+  return m;
 }
+
+#if PY_MAJOR_VERSION < 3
+    PyMODINIT_FUNC
+    init_resample(void)
+    {
+        moduleinit();
+    }
+#else
+    PyMODINIT_FUNC
+    PyInit_resample(void)
+    {
+        return moduleinit();
+    }
 #endif
