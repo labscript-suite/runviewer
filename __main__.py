@@ -215,6 +215,7 @@ class RunViewer(object):
         self.ui.channel_move_to_bottom.setIcon(QIcon(':/qtutils/fugue/arrow-stop-270'))
         self.ui.reset_x_axis.setIcon(QIcon(':/qtutils/fugue/clock-history'))
         self.ui.reset_y_axis.setIcon(QIcon(':/qtutils/fugue/magnifier-history'))
+        self.ui.toggle_tooltip.setIcon(QIcon(':/qtutils/fugue/ui-tooltip-balloon'))
 
         self.ui.actionOpen_Shot.setIcon(QIcon(':/qtutils/fugue/plus'))
         self.ui.actionQuit.setIcon(QIcon(':/qtutils/fugue/cross-button'))
@@ -276,23 +277,24 @@ class RunViewer(object):
 
 
     def mouseMovedEvent(self, position, ui, name):
-        v = ui.scene().views()[0]
-        viewP = v.mapFromScene(position)
-        glob_pos = ui.mapToGlobal(viewP)  # convert to Screen x
-        glob_zero = ui.mapToGlobal(QPoint(0, 0))
-        self._global_start_x = glob_zero.x()
-        self._global_start_y = glob_zero.y()
-        self._global_width = ui.width()
-        self._global_height = ui.height()
+        if self.ui.toggle_tooltip.isChecked():
+            v = ui.scene().views()[0]
+            viewP = v.mapFromScene(position)
+            glob_pos = ui.mapToGlobal(viewP)  # convert to Screen x
+            glob_zero = ui.mapToGlobal(QPoint(0, 0))
+            self._global_start_x = glob_zero.x()
+            self._global_start_y = glob_zero.y()
+            self._global_width = ui.width()
+            self._global_height = ui.height()
 
-        coord_pos = ui.plotItem.vb.mapSceneToView(position)
+            coord_pos = ui.plotItem.vb.mapSceneToView(position)
 
-        if len(self.get_selected_shots_and_colours()) > 0:
-            unscaled_t = coord_pos.x()
-            if unscaled_t is not None:
-                pos = QPoint(glob_pos.x(), glob_pos.y())
-                text = "Plot: {} \nTime: {:.4f}ms\nValue: {:.2f}".format(name, unscaled_t * 1000, coord_pos.y())
-                QToolTip.showText(pos, text)
+            if len(self.get_selected_shots_and_colours()) > 0:
+                unscaled_t = coord_pos.x()
+                if unscaled_t is not None:
+                    pos = QPoint(glob_pos.x(), glob_pos.y())
+                    text = "Plot: {} \nTime: {:.9f}s\nValue: {:.2f}".format(name, unscaled_t, coord_pos.y())
+                    QToolTip.showText(pos, text)
 
     def _process_shots(self):
         while True:
