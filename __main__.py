@@ -257,7 +257,7 @@ class RunViewer(object):
 
         # add some icons
         self.ui.add_shot.setIcon(QIcon(':/qtutils/fugue/plus'))
-        self.ui.delete_shot.setIcon(QIcon(':/qtutils/fugue/minus'))
+        self.ui.remove_shots.setIcon(QIcon(':/qtutils/fugue/minus'))
         self.ui.enable_selected_shots.setIcon(QIcon(':/qtutils/fugue/ui-check-box'))
         self.ui.disable_selected_shots.setIcon(QIcon(':/qtutils/fugue/ui-check-box-uncheck'))
         self.ui.group_channel.setIcon(QIcon(':/qtutils/fugue/layers-group'))
@@ -275,7 +275,6 @@ class RunViewer(object):
         self.ui.actionSave_channel_config.setIcon(QIcon(':/qtutils/fugue/disk'))
 
         # disable buttons that are not yet implemented to help avoid confusion!
-        self.ui.delete_shot.setEnabled(False)
         self.ui.group_channel.setEnabled(False)
         self.ui.delete_group.setEnabled(False)
 
@@ -290,6 +289,7 @@ class RunViewer(object):
         self.ui.disable_selected_shots.clicked.connect(self._disable_selected_shots)
         self.ui.add_shot.clicked.connect(self.on_add_shot)
         self.ui.markers_comboBox.currentIndexChanged.connect(self._update_markers)
+        self.ui.remove_shots.clicked.connect(self.on_remove_shots)
 
         self.ui.actionOpen_Shot.triggered.connect(self.on_add_shot)
         self.ui.actionQuit.triggered.connect(self.ui.close)
@@ -449,6 +449,31 @@ class RunViewer(object):
             message.setWindowTitle("Runviewer")
             message.setStandardButtons(QMessageBox.Ok)
             message.exec_()
+
+    def on_remove_shots(self):
+        # Get the selection model from the treeview
+        selection_model = self.ui.shot_treeview.selectionModel()
+        # Create a list of select row indices
+        selected_row_list = [index.row() for index in selection_model.selectedRows()]
+        # sort in descending order to prevent index changes of rows to be deleted
+        selected_row_list.sort(reverse=True)
+
+        reply = QMessageBox.question(self.ui, 'Runviewer', 'Remove {} shots?'.format(len(selected_row_list)),
+                                       QMessageBox.Yes | QMessageBox.No)
+        if reply == QMessageBox.No:
+            return
+
+        for row in selected_row_list:
+            item = self.shot_model.item(row, SHOT_MODEL__CHECKBOX_INDEX)
+            colour_item = self.shot_model.item(row, SHOT_MODEL__COLOUR_INDEX)
+            shutter_item = self.shot_model.item(row, SHOT_MODEL__SHUTTER_INDEX)
+            shot = item.data()
+            # unselect shot
+            item.setCheckState(Qt.Unchecked)
+            shutter_item.setCheckState(Qt.Unchecked)
+            # remove row
+            self.shot_model.removeRow(row)
+            del shot
 
     def on_shot_selection_changed(self, item):
         if self.shot_model.indexFromItem(item).column() == SHOT_MODEL__CHECKBOX_INDEX:

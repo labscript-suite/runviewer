@@ -120,7 +120,7 @@ QToolButton:hover:checked {
             </widget>
            </item>
            <item>
-            <widget class="QPushButton" name="delete_shot">
+            <widget class="QPushButton" name="remove_shots">
              <property name="maximumSize">
               <size>
                <width>30</width>
@@ -128,7 +128,7 @@ QToolButton:hover:checked {
               </size>
              </property>
              <property name="toolTip">
-              <string>Delete selected shots</string>
+              <string>Remove selected shots</string>
              </property>
              <property name="text">
               <string/>
