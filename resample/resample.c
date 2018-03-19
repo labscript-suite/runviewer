@@ -14,6 +14,7 @@
 #include "Python.h"
 #include "math.h"
 #include "numpy/arrayobject.h"
+#include "numpy/npy_math.h"
 #include <stdio.h>
 
 static PyObject *
@@ -72,7 +73,7 @@ resample(PyObject *dummy, PyObject *args)
     if(x_out_data[n_out - 1] < x_in_data[0] || x_out_data[0] > stop_time){
         // We're all the way to the left of the data or all the way to the right. Fill with NaNs:
         while(i < n_out-1){
-            y_out_data[i] = 0.0/0.0;
+            y_out_data[i] = NPY_NAN;
             i++;
         }
     }
@@ -83,7 +84,7 @@ resample(PyObject *dummy, PyObject *args)
                 y_out_data[i] = y_in_data[n_in-1];
             }
             else{
-                y_out_data[i] = 0.0/0.0;
+                y_out_data[i] = NPY_NAN;
             }
             i++;
         }
@@ -92,9 +93,9 @@ resample(PyObject *dummy, PyObject *args)
         // Until we get to the data, fill the output array with NaNs (which
         // get ignored when plotted)
         while(x_out_data[i] < x_in_data[0]){
-            y_out_data[i++] = 0.0/0.0;
-            y_out_data[i++] = 0.0/0.0;
-            y_out_data[i++] = 0.0/0.0;
+            y_out_data[i++] = NPY_NAN;
+            y_out_data[i++] = NPY_NAN;
+            y_out_data[i++] = NPY_NAN;
         }
         // If we're some way into the data, we need to skip ahead to where
         // we want to get the first datapoint from:
@@ -164,7 +165,7 @@ resample(PyObject *dummy, PyObject *args)
                 y_out_data[i] = y_in_data[n_in-1];
             }
             else{
-                y_out_data[i] = 0.0/0.0;
+                y_out_data[i] = NPY_NAN;
             }
             i++;
         }
@@ -217,7 +218,7 @@ moduleinit(void)
     m = Py_InitModule3("resample",
                         module_functions, "");
 #endif
-	
+
     if (m == NULL)
         return NULL;
 
@@ -235,7 +236,7 @@ moduleinit(void)
     PyMODINIT_FUNC
     PyInit_resample(void)
     {
-    	PyObject *m;
+        PyObject *m;
         m = moduleinit();
         import_array();
         return m;

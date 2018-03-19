@@ -81,7 +81,7 @@ import labscript_devices
 
 from labscript_utils.labconfig import LabConfig, config_prefix
 
-from resample import resample as _resample
+from runviewer.resample import resample as _resample
 
 
 def set_win_appusermodel(window_id):

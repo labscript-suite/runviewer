@@ -23,7 +23,7 @@ if arch == '32bit' and os_platform == 'win32':
     plat_name = 'win32'
     file_name = 'resample.pyd'
 elif arch == '64bit' and os_platform == 'win32':
-    plat_name = 'win64'
+    plat_name = 'win64' if PY2 else 'win64Py3'
     file_name = 'resample.pyd'
 elif arch == '64bit' and (os_platform == "linux" or os_platform == "linux2"):
     plat_name = 'linux64'
@@ -34,6 +34,6 @@ elif arch == '64bit' and os_platform == "darwin":
 else:
     raise RuntimeError('Unsupported platform, please report a bug')
 
-module = importlib.import_module('runviewer.resample.%s.resample'%plat_name)
+module = importlib.import_module('runviewer.resample.%s.resample' % plat_name)
 
 resample = module.resample
