@@ -26,7 +26,7 @@ elif arch == '64bit' and os_platform == 'win32':
     plat_name = 'win64' if PY2 else 'win64Py3'
     file_name = 'resample.pyd'
 elif arch == '64bit' and (os_platform == "linux" or os_platform == "linux2"):
-    plat_name = 'linux64'
+    plat_name = 'linux64' if PY2 else 'linux64Py3'
     file_name = 'resample.so'
 elif arch == '64bit' and os_platform == "darwin":
     plat_name = 'darwin64' if PY2 else 'darwin64Py3'
