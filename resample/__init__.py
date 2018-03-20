@@ -1,3 +1,5 @@
+from __future__ import division, unicode_literals, print_function, absolute_import
+from labscript_utils import PY2
 import os
 import platform
 import shutil
@@ -21,17 +23,17 @@ if arch == '32bit' and os_platform == 'win32':
     plat_name = 'win32'
     file_name = 'resample.pyd'
 elif arch == '64bit' and os_platform == 'win32':
-    plat_name = 'win64'
+    plat_name = 'win64' if PY2 else 'win64Py3'
     file_name = 'resample.pyd'
 elif arch == '64bit' and (os_platform == "linux" or os_platform == "linux2"):
-    plat_name = 'linux64'
+    plat_name = 'linux64' if PY2 else 'linux64Py3'
     file_name = 'resample.so'
 elif arch == '64bit' and os_platform == "darwin":
-    plat_name = 'darwin64'
+    plat_name = 'darwin64' if PY2 else 'darwin64Py3'
     file_name = 'resample.so'
 else:
     raise RuntimeError('Unsupported platform, please report a bug')
 
-module = importlib.import_module('runviewer.resample.%s.resample'%plat_name)
+module = importlib.import_module('runviewer.resample.%s.resample' % plat_name)
 
-resample = module.resample
+resample = module.resample

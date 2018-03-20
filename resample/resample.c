@@ -14,6 +14,7 @@
 #include "Python.h"
 #include "math.h"
 #include "numpy/arrayobject.h"
+#include "numpy/npy_math.h"
 #include <stdio.h>
 
 static PyObject *
@@ -21,9 +22,9 @@ resample(PyObject *dummy, PyObject *args)
 {
     // Parse the input arguments:
     PyObject *arg1=NULL, *arg2=NULL, *arg3=NULL, *out=NULL;
-    PyObject *x_in=NULL, *y_in=NULL, *x_out=NULL, *y_out=NULL; 
+    PyObject *x_in=NULL, *y_in=NULL, *x_out=NULL, *y_out=NULL;
     double stop_time;
-    
+
     if (!PyArg_ParseTuple(args, "OOOO!d", &arg1, &arg2, &arg3,
         &PyArray_Type, &out, &stop_time)) return NULL;
 
@@ -36,43 +37,43 @@ resample(PyObject *dummy, PyObject *args)
     if (x_out == NULL) goto fail;
     y_out = PyArray_FROM_OTF(out, NPY_FLOAT64, NPY_INOUT_ARRAY);
     if (y_out == NULL) goto fail;
-    
+
     // The data contained in the np arrays:
     double * x_in_data;
     double * x_out_data;
     double * y_in_data;
     double * y_out_data;
-    
+
     x_in_data = PyArray_DATA(x_in);
     x_out_data = PyArray_DATA(x_out);
     y_in_data = PyArray_DATA(y_in);
     y_out_data = PyArray_DATA(y_out);
-    
+
     // The length of the input and output arrays:
     int n_in;
     int n_out;
-    
+
     n_in = ((npy_intp *)PyArray_DIMS(x_in))[0];
     n_out = ((npy_intp *)PyArray_DIMS(x_out))[0];
-    
+
     // The indices for traversing th input and output arrays:
     int i;
     int j;
-    
+
     //storage of jump values (for determining locations of max/min points within a time step)
     double positive_jump_value;
     int positive_jump_index;
     double negative_jump_value;
     int negative_jump_index;
     double jump;
-    
+
     i = 0;
     j = 1;
     // A couple of special cases that I don't want to have to put extra checks in for:
     if(x_out_data[n_out - 1] < x_in_data[0] || x_out_data[0] > stop_time){
         // We're all the way to the left of the data or all the way to the right. Fill with NaNs:
         while(i < n_out-1){
-            y_out_data[i] = 0.0/0.0;
+            y_out_data[i] = NPY_NAN;
             i++;
         }
     }
@@ -83,7 +84,7 @@ resample(PyObject *dummy, PyObject *args)
                 y_out_data[i] = y_in_data[n_in-1];
             }
             else{
-                y_out_data[i] = 0.0/0.0;
+                y_out_data[i] = NPY_NAN;
             }
             i++;
         }
@@ -92,9 +93,9 @@ resample(PyObject *dummy, PyObject *args)
         // Until we get to the data, fill the output array with NaNs (which
         // get ignored when plotted)
         while(x_out_data[i] < x_in_data[0]){
-            y_out_data[i++] = 0.0/0.0;
-            y_out_data[i++] = 0.0/0.0;
-            y_out_data[i++] = 0.0/0.0;
+            y_out_data[i++] = NPY_NAN;
+            y_out_data[i++] = NPY_NAN;
+            y_out_data[i++] = NPY_NAN;
         }
         // If we're some way into the data, we need to skip ahead to where
         // we want to get the first datapoint from:
@@ -131,7 +132,7 @@ resample(PyObject *dummy, PyObject *args)
                 }
                 j++;
             }
-            
+
             if (positive_jump_index < negative_jump_index)
             {
                 y_out_data[i-1] = y_in_data[positive_jump_index];
@@ -149,7 +150,7 @@ resample(PyObject *dummy, PyObject *args)
         if(j < n_in){
             // If the sample rate of the raw data is low, then the current
             // j point could be outside the current plot view range
-            // If so, decrease j so that we take a value that is within the 
+            // If so, decrease j so that we take a value that is within the
             // plot view range.
             if(x_in_data[j] > x_out_data[n_out-1] && j > 0){
                 j--;
@@ -164,12 +165,12 @@ resample(PyObject *dummy, PyObject *args)
                 y_out_data[i] = y_in_data[n_in-1];
             }
             else{
-                y_out_data[i] = 0.0/0.0;
+                y_out_data[i] = NPY_NAN;
             }
             i++;
         }
     }
-    
+
     Py_DECREF(x_in);
     Py_DECREF(y_in);
     Py_DECREF(x_out);
@@ -185,15 +186,59 @@ resample(PyObject *dummy, PyObject *args)
     return NULL;
 }
 
-static PyMethodDef 
+static PyMethodDef
 module_functions[] = {
     {"resample", resample, METH_VARARGS, ""},
     {NULL}
 };
 
-void 
-initresample(void)
+#if PY_MAJOR_VERSION >= 3
+  static struct PyModuleDef moduledef = {
+    PyModuleDef_HEAD_INIT,
+    "resample", /* m_name */
+    "",      /* m_doc */
+    -1,                  /* m_size */
+    module_functions,    /* m_methods */
+    NULL,                /* m_reload */
+    NULL,                /* m_traverse */
+    NULL,                /* m_clear */
+    NULL,                /* m_free */
+  };
+#endif
+
+static PyObject *
+moduleinit(void)
 {
-   Py_InitModule3("resample", module_functions,"");
-   import_array();
+    PyObject *m;
+
+#if PY_MAJOR_VERSION >= 3
+    m = PyModule_Create(&moduledef);
+    import_array();
+#else
+    m = Py_InitModule3("resample",
+                        module_functions, "");
+#endif
+
+    if (m == NULL)
+        return NULL;
+
+  return m;
 }
+
+#if PY_MAJOR_VERSION < 3
+    PyMODINIT_FUNC
+    initresample(void)
+    {
+        moduleinit();
+        import_array();
+    }
+#else
+    PyMODINIT_FUNC
+    PyInit_resample(void)
+    {
+        PyObject *m;
+        m = moduleinit();
+        import_array();
+        return m;
+    }
+#endif

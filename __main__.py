@@ -10,6 +10,8 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
+from __future__ import division, unicode_literals, print_function, absolute_import
+from labscript_utils import PY2
 
 import os
 import sys
@@ -18,7 +20,11 @@ import threading
 import logging
 import ctypes
 import socket
-from Queue import Queue
+if PY2:
+    str = unicode
+    from Queue import Queue
+else:
+    from queue import Queue
 import ast
 import pprint
 
@@ -75,7 +81,7 @@ import labscript_devices
 
 from labscript_utils.labconfig import LabConfig, config_prefix
 
-from resample import resample as _resample
+from runviewer.resample import resample as _resample
 
 
 def set_win_appusermodel(window_id):
@@ -532,12 +538,12 @@ class RunViewer(object):
         for i in range(self.channel_model.rowCount()):
             item = self.channel_model.item(i, CHANNEL_MODEL__CHECKBOX_INDEX)
             # Sanity check
-            if unicode(item.text()) in treeview_channels_dict:
+            if str(item.text()) in treeview_channels_dict:
                 raise RuntimeError("A duplicate channel name was detected in the treeview due to an internal error. Please lodge a bugreport detailing how the channels with the same name appeared in the channel treeview. Please restart the application")
 
-            treeview_channels_dict[unicode(item.text())] = i
+            treeview_channels_dict[str(item.text())] = i
             if not item.isEnabled():
-                deactivated_treeview_channels_dict[unicode(item.text())] = i
+                deactivated_treeview_channels_dict[str(item.text())] = i
         treeview_channels = set(treeview_channels_dict.keys())
         deactivated_treeview_channels = set(deactivated_treeview_channels_dict.keys())
 
@@ -600,7 +606,7 @@ class RunViewer(object):
         # Update plots
         for i in range(self.channel_model.rowCount()):
             check_item = self.channel_model.item(i, CHANNEL_MODEL__CHECKBOX_INDEX)
-            channel = unicode(check_item.text())
+            channel = str(check_item.text())
             if check_item.checkState() == Qt.Checked and check_item.isEnabled():
                 # we want to show this plot
                 # does a plot already exist? If yes, show it
@@ -1068,7 +1074,7 @@ class RunViewer(object):
         # add all widgets
         for i in range(self.channel_model.rowCount()):
             check_item = self.channel_model.item(i, CHANNEL_MODEL__CHECKBOX_INDEX)
-            channel = unicode(check_item.text())
+            channel = str(check_item.text())
             if channel in self.plot_widgets:
                 self.ui.plot_layout.addWidget(self.plot_widgets[channel])
                 if check_item.checkState() == Qt.Checked and check_item.isEnabled():
@@ -1099,12 +1105,12 @@ class Shot(object):
         # open h5 file
         with h5py.File(path, 'r') as file:
             # Get master pseudoclock
-            self.master_pseudoclock_name = file['connection table'].attrs['master_pseudoclock']
+            self.master_pseudoclock_name = file['connection table'].attrs['master_pseudoclock'].decode('utf8')
 
             # get stop time
-            self.stop_time = file['devices/%s' % self.master_pseudoclock_name].attrs['stop_time']
+            self.stop_time = file['devices'][self.master_pseudoclock_name].attrs['stop_time']
 
-            self.device_names = file['devices'].keys()
+            self.device_names = list(file['devices'].keys())
 
             # Get Shutter Calibrations
             if 'calibrations' in file and 'Shutter' in file['calibrations']:
@@ -1129,7 +1135,7 @@ class Shot(object):
         self._load_device(master_pseudoclock_device)
 
     def add_trace(self, name, trace, parent_device_name, connection):
-        name = unicode(name)
+        name = str(name)
         self._channels[name] = {'device_name': parent_device_name, 'port': connection}
         self._traces[name] = trace
 
@@ -1146,7 +1152,7 @@ class Shot(object):
 
     def _load_device(self, device, clock=None):
         try:
-            print 'loading %s' % device.name
+            print('loading %s' % device.name)
             module = device.device_class
             # Load the master pseudoclock class
             # labscript_devices.import_device(module)
@@ -1165,9 +1171,9 @@ class Shot(object):
             #    raise
             # raise
             if hasattr(device, 'name'):
-                print 'Failed to load device %s' % device.name
+                print('Failed to load device %s' % device.name)
             else:
-                print 'Failed to load device (unknown name, device object does not have attribute name)'
+                print('Failed to load device (unknown name, device object does not have attribute name)')
 
         # get all Shutters with their open_state
         try:
