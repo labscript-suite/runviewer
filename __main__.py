@@ -1105,7 +1105,11 @@ class Shot(object):
         # open h5 file
         with h5py.File(path, 'r') as file:
             # Get master pseudoclock
-            self.master_pseudoclock_name = file['connection table'].attrs['master_pseudoclock'].decode('utf8')
+            self.master_pseudoclock_name = file['connection table'].attrs['master_pseudoclock']
+            if isinstance(self.master_pseudoclock_name, bytes):
+                self.master_pseudoclock_name = self.master_pseudoclock_name.decode('utf8')
+            else:
+                self.master_pseudoclock_name = str(self.master_pseudoclock_name)
 
             # get stop time
             self.stop_time = file['devices'][self.master_pseudoclock_name].attrs['stop_time']
