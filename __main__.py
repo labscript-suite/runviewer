@@ -10,6 +10,8 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
+from __future__ import division, unicode_literals, print_function, absolute_import
+from labscript_utils import PY2
 
 import os
 import sys
@@ -18,7 +20,11 @@ import threading
 import logging
 import ctypes
 import socket
-from Queue import Queue
+if PY2:
+    str = unicode
+    from Queue import Queue
+else:
+    from queue import Queue
 import ast
 import pprint
 
@@ -37,7 +43,7 @@ try:
 except ImportError:
     raise ImportError('Require labscript_utils > 2.1.0')
 
-check_version('labscript_utils', '2.0', '3')
+check_version('labscript_utils', '2.6.1', '3')
 check_version('qtutils', '2.0.0', '3.0.0')
 check_version('zprocess', '1.1.2', '3')
 
@@ -70,12 +76,12 @@ pg.setConfigOption('foreground', 'k')
 
 from qtutils import *
 import qtutils.icons
-from blacs.connections import ConnectionTable
+from labscript_utils.connections import ConnectionTable
 import labscript_devices
 
 from labscript_utils.labconfig import LabConfig, config_prefix
 
-from resample import resample as _resample
+from runviewer.resample import resample as _resample
 
 
 def set_win_appusermodel(window_id):
@@ -268,6 +274,7 @@ class RunViewer(object):
         self.ui.channel_move_to_bottom.setIcon(QIcon(':/qtutils/fugue/arrow-stop-270'))
         self.ui.reset_x_axis.setIcon(QIcon(':/qtutils/fugue/clock-history'))
         self.ui.reset_y_axis.setIcon(QIcon(':/qtutils/fugue/magnifier-history'))
+        self.ui.toggle_tooltip.setIcon(QIcon(':/qtutils/fugue/ui-tooltip-balloon'))
 
         self.ui.actionOpen_Shot.setIcon(QIcon(':/qtutils/fugue/plus'))
         self.ui.actionQuit.setIcon(QIcon(':/qtutils/fugue/cross-button'))
@@ -345,8 +352,9 @@ class RunViewer(object):
 
             color = m['color']
             color = QColor(color[0], color[1], color[2])
+            label = m['label'].decode() if isinstance( m['label'], bytes) else str(m['label'])
 
-            line = self._markers_plot[0].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=Qt.DashLine), label=m['label'], labelOpts= {"color": color, "fill": QColor(255, 255, 255, 255), "rotateAxis":(1, 0), "anchors": [(0.5, 0),(0.5, 0)]} )
+            line = self._markers_plot[0].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=Qt.DashLine), label=label, labelOpts= {"color": color, "fill": QColor(255, 255, 255, 255), "rotateAxis":(1, 0), "anchors": [(0.5, 0),(0.5, 0)]} )
             self.all_marker_items[line] = self._markers_plot[0]
 
             line = self._time_axis_plot[0].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=Qt.DashLine), label=format_time(delta_t), labelOpts= {"color": color, "fill": QColor(255, 255, 255, 255), "rotateAxis":(1, 0), "anchors": [(0.5, 0),(0.5, 0)]} )
@@ -354,6 +362,25 @@ class RunViewer(object):
 
         self.update_plots()
 
+    def mouseMovedEvent(self, position, ui, name):
+        if self.ui.toggle_tooltip.isChecked():
+            v = ui.scene().views()[0]
+            viewP = v.mapFromScene(position)
+            glob_pos = ui.mapToGlobal(viewP)  # convert to Screen x
+            glob_zero = ui.mapToGlobal(QPoint(0, 0))
+            self._global_start_x = glob_zero.x()
+            self._global_start_y = glob_zero.y()
+            self._global_width = ui.width()
+            self._global_height = ui.height()
+
+            coord_pos = ui.plotItem.vb.mapSceneToView(position)
+
+            if len(self.get_selected_shots_and_colours()) > 0:
+                unscaled_t = coord_pos.x()
+                if unscaled_t is not None:
+                    pos = QPoint(glob_pos.x(), glob_pos.y())
+                    text = "Plot: {} \nTime: {:.9f}s\nValue: {:.2f}".format(name, unscaled_t, coord_pos.y())
+                    QToolTip.showText(pos, text)
 
     def _process_shots(self):
         while True:
@@ -602,12 +629,12 @@ class RunViewer(object):
         for i in range(self.channel_model.rowCount()):
             item = self.channel_model.item(i, CHANNEL_MODEL__CHECKBOX_INDEX)
             # Sanity check
-            if unicode(item.text()) in treeview_channels_dict:
+            if str(item.text()) in treeview_channels_dict:
                 raise RuntimeError("A duplicate channel name was detected in the treeview due to an internal error. Please lodge a bugreport detailing how the channels with the same name appeared in the channel treeview. Please restart the application")
 
-            treeview_channels_dict[unicode(item.text())] = i
+            treeview_channels_dict[str(item.text())] = i
             if not item.isEnabled():
-                deactivated_treeview_channels_dict[unicode(item.text())] = i
+                deactivated_treeview_channels_dict[str(item.text())] = i
         treeview_channels = set(treeview_channels_dict.keys())
         deactivated_treeview_channels = set(deactivated_treeview_channels_dict.keys())
 
@@ -671,7 +698,7 @@ class RunViewer(object):
         # Update plots
         for i in range(self.channel_model.rowCount()):
             check_item = self.channel_model.item(i, CHANNEL_MODEL__CHECKBOX_INDEX)
-            channel = unicode(check_item.text())
+            channel = str(check_item.text())
             if check_item.checkState() == Qt.Checked and check_item.isEnabled():
                 # we want to show this plot
                 # does a plot already exist? If yes, show it
@@ -732,6 +759,7 @@ class RunViewer(object):
         self.plot_widgets[channel].setMouseEnabled(y=False)
         self.plot_widgets[channel].setXLink('runviewer - time axis link')
         self.plot_widgets[channel].sigXRangeChanged.connect(self.on_x_range_changed)
+        self.plot_widgets[channel].scene().sigMouseMoved.connect(lambda pos: self.mouseMovedEvent(pos, self.plot_widgets[channel], channel))
         self.ui.plot_layout.insertWidget(self.ui.plot_layout.count() - 2, self.plot_widgets[channel])
         self.shutter_lines[channel] = {}  # initialize Storage for shutter lines
         self.plot_items.setdefault(channel, {})
@@ -1146,7 +1174,7 @@ class RunViewer(object):
         # add all widgets
         for i in range(self.channel_model.rowCount()):
             check_item = self.channel_model.item(i, CHANNEL_MODEL__CHECKBOX_INDEX)
-            channel = unicode(check_item.text())
+            channel = str(check_item.text())
             if channel in self.plot_widgets:
                 self.ui.plot_layout.addWidget(self.plot_widgets[channel])
                 if check_item.checkState() == Qt.Checked and check_item.isEnabled():
@@ -1180,11 +1208,15 @@ class Shot(object):
         with h5py.File(path, 'r') as file:
             # Get master pseudoclock
             self.master_pseudoclock_name = file['connection table'].attrs['master_pseudoclock']
+            if isinstance(self.master_pseudoclock_name, bytes):
+                self.master_pseudoclock_name = self.master_pseudoclock_name.decode('utf8')
+            else:
+                self.master_pseudoclock_name = str(self.master_pseudoclock_name)
 
             # get stop time
-            self.stop_time = file['devices/%s' % self.master_pseudoclock_name].attrs['stop_time']
+            self.stop_time = file['devices'][self.master_pseudoclock_name].attrs['stop_time']
 
-            self.device_names = file['devices'].keys()
+            self.device_names = list(file['devices'].keys())
 
             # Get Shutter Calibrations
             if 'calibrations' in file and 'Shutter' in file['calibrations']:
@@ -1224,7 +1256,7 @@ class Shot(object):
                     self._markers[float(time)] = {'color': color, 'label': label}
 
     def add_trace(self, name, trace, parent_device_name, connection):
-        name = unicode(name)
+        name = str(name)
         self._channels[name] = {'device_name': parent_device_name, 'port': connection}
         self._traces[name] = trace
 
@@ -1241,7 +1273,7 @@ class Shot(object):
 
     def _load_device(self, device, clock=None):
         try:
-            print 'loading %s' % device.name
+            print('loading %s' % device.name)
             module = device.device_class
             # Load the master pseudoclock class
             # labscript_devices.import_device(module)
@@ -1260,9 +1292,9 @@ class Shot(object):
             #    raise
             # raise
             if hasattr(device, 'name'):
-                print 'Failed to load device %s' % device.name
+                print('Failed to load device %s' % device.name)
             else:
-                print 'Failed to load device (unknown name, device object does not have attribute name)'
+                print('Failed to load device (unknown name, device object does not have attribute name)')
 
         # get all Shutters with their open_state
         try:
