@@ -1,14 +1,23 @@
-# run as python setup.py build_ext --inplace.
-# This will build the extension file in this directory.
-# You must then put it in the appropriate platform-named
-# subdirectory with an empty __init__.py in order for it
-# to be importable.
+# To build the extension, run this setup script like so:
+#
+#    python setup.py build_ext --inplace
+#
+# or on Windows:
+#
+#    python setup.py build_ext --inplace --compiler=msvc
+#
+# To produce html annotation for a cython file, instead run:
+#     cython -a myfile.pyx
 
-from distutils.core import setup, Extension
-import numpy
+# Setuptools monkeypatches distutils to be able to find the visual C compiler on
+# windows:
+import setuptools
+from distutils.extension import Extension
+from Cython.Distutils import build_ext
 
+ext_modules = [Extension("resample", ["resample.pyx"])]
 setup(
-    ext_modules = [
-        Extension("resample",sources=["resample.c"], include_dirs = [numpy.get_include()])
-        ]
-    )
+    name = "resample",
+    cmdclass = {"build_ext": build_ext},
+    ext_modules = ext_modules
+)
