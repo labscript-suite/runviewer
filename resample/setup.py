@@ -1,7 +1,7 @@
 # This extension is intended to be built with autocython. To trigger a build on a
-# new platform, import the package do 'import resample' from the parent directory,
-# such that the __init__.py in this directory runs.
-
+# new platform, run the code that imports the extension, or run:
+# python -m autocython
+# in this directory.
 from setuptools import setup
 from setuptools.extension import Extension
 from Cython.Distutils import build_ext
