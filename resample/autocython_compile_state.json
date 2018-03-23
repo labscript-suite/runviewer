@@ -7,9 +7,17 @@
         "pyx": "2ce9098cc8a417339614b97bdae1a54f333308bba5d680b1237ea835ecc819e0",
         "so": "b1f0585bd9ed8eb4285ec2b8516b75eb997684a3690f0f25026d3620878515cb"
     },
+    "resample.cpython-36m-darwin.so": {
+        "pyx": "2ce9098cc8a417339614b97bdae1a54f333308bba5d680b1237ea835ecc819e0",
+        "so": "ea100d1214a42dfd07146c2e74098845a6d4adb56b2cf2580a4e0b03857cce8b"
+    },
     "resample.cpython-36m-x86_64-linux-gnu.so": {
         "pyx": "2ce9098cc8a417339614b97bdae1a54f333308bba5d680b1237ea835ecc819e0",
         "so": "32f05264c238ad88e75a6f59e39685ce0ae9ddcde3f4b11b28e7d8df2e07ecdc"
+    },
+    "resample_py27_darwin_64bit.so": {
+        "pyx": "2ce9098cc8a417339614b97bdae1a54f333308bba5d680b1237ea835ecc819e0",
+        "so": "5238be09a0f6ab29c04f4d398feee4ac8cf5de8ead1ab1d2a0f6d7d2f58a2c3e"
     },
     "resample_py27_linux2_64bit.so": {
         "pyx": "2ce9098cc8a417339614b97bdae1a54f333308bba5d680b1237ea835ecc819e0",
