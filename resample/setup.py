@@ -1,21 +1,12 @@
-# To build the extension, run this setup script like so:
-#
-#    python setup.py build_ext --inplace
-#
-# or on Windows:
-#
-#    python setup.py build_ext --inplace --compiler=msvc
-#
-# To produce html annotation for a cython file, instead run:
-#     cython -a myfile.pyx
+# This extension is intended to be built with autocython. To trigger a build on a
+# new platform, import the package do 'import resample' from the parent directory,
+# such that the __init__.py in this directory runs.
 
-# Setuptools monkeypatches distutils to be able to find the visual C compiler on
-# windows:
-import setuptools
-from distutils.extension import Extension
+from setuptools import setup
+from setuptools.extension import Extension
 from Cython.Distutils import build_ext
-
-ext_modules = [Extension("resample", ["resample.pyx"])]
+from autocython import PLATFORM_SUFFIX
+ext_modules = [Extension("resample" + PLATFORM_SUFFIX, ["resample.pyx"])]
 setup(
     name = "resample",
     cmdclass = {"build_ext": build_ext},
