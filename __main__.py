@@ -206,7 +206,7 @@ class RunViewer(object):
         hidden_plot.showAxis('right', True)
         hidden_plot_item = hidden_plot.plot([0, 1], [0, 0])
         self._hidden_plot = (hidden_plot, hidden_plot_item)
-        self.ui.plot_layout.addWidget(hidden_plot)
+        self.ui.hidden_plot_layout.addWidget(hidden_plot)
 
         # add some icons
         self.ui.add_shot.setIcon(QIcon(':/qtutils/fugue/plus'))
