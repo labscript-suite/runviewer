@@ -13,6 +13,8 @@
 from __future__ import division, unicode_literals, print_function, absolute_import
 from labscript_utils import PY2
 
+# import PyQt4
+
 import os
 import sys
 import time
