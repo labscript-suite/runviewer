@@ -199,8 +199,8 @@ class RunViewer(object):
         # create a hidden plot widget that all plots can link their x-axis too
         hidden_plot = pg.PlotWidget(name='runviewer - time axis link')
 
-        hidden_plot.setMinimumHeight(40)
-        hidden_plot.setMaximumHeight(40)
+        hidden_plot.setMinimumHeight(1)
+        hidden_plot.setMaximumHeight(1)
         hidden_plot.setLabel('bottom', 'Time', units='s')
         hidden_plot.setLabel('left', " ")
         hidden_plot.showAxis('right', True)
