@@ -1143,6 +1143,15 @@ class Shot(object):
         self._channels[name] = {'device_name': parent_device_name, 'port': connection}
         self._traces[name] = trace
 
+        # add shutter times
+        try:
+            con = self.connection_table.find_by_name(name)
+            if con.device_class == "Shutter":
+                self.add_shutter_times([(name, con.properties['open_state'])])
+        except KeyError:
+            pass
+
+
     # Temporary solution to physical shutter times
     def add_shutter_times(self, shutters):
         for name, open_state in shutters:
@@ -1179,19 +1188,12 @@ class Shot(object):
             else:
                 print('Failed to load device (unknown name, device object does not have attribute name)')
 
-        # get all Shutters with their open_state
-        try:
-            shutters = [(name, child_con.properties['open_state']) for name, child_con in device.child_list.items() if child_con.device_class == "Shutter"]
-        except KeyError:
-            # no openstate in connection table
-            with h5py.File(self.path, 'r') as file:
-                if "runviewer" in file:
-                    if "shutter_times" in file["runviewer"]:
-                        for name, val in file["runviewer"]["shutter_times"].attrs.items():
-                            self._shutter_times[name] = {float(key_value.split(":")[0]): int(key_value.split(":")[1]) for key_value in val.strip('{}}').split(",")}
-            pass
-        else:
-            self.add_shutter_times(shutters)
+        # backwards compat
+        with h5py.File(self.path, 'r') as file:
+            if "runviewer" in file:
+                if "shutter_times" in file["runviewer"]:
+                    for name, val in file["runviewer"]["shutter_times"].attrs.items():
+                        self._shutter_times[name] = {float(key_value.split(":")[0]): int(key_value.split(":")[1]) for key_value in val.strip('{}}').split(",")}
 
     @property
     def channels(self):
