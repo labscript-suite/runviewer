@@ -258,19 +258,8 @@ class RunViewer(object):
         markers_plot_item = markers_plot.plot([])
         self._markers_plot = (markers_plot, markers_plot_item)
 
-        markers_plot.setParent(self.ui.scrollArea_2)
+        self.ui.verticalLayout_9.insertWidget(1,markers_plot)
         self.ui.plot_layout.addWidget(time_axis_plot)
-
-        self.ui.plot_layout.setContentsMargins(0, markers_plot.height()-1, 0, 0)
-
-        def resizeEvent(event):
-            rect = self.ui.scrollArea_2.viewport().geometry()
-            markers_plot.setGeometry(
-                0, 0,
-                rect.width(), 0)
-            QScrollArea.resizeEvent(self.ui.scrollArea_2, event)
-
-        self.ui.scrollArea_2.resizeEvent = resizeEvent
 
         # add some icons
         self.ui.add_shot.setIcon(QIcon(':/qtutils/fugue/plus'))
@@ -770,7 +759,7 @@ class RunViewer(object):
         self.plot_widgets[channel].setXLink('runviewer - time axis link')
         self.plot_widgets[channel].sigXRangeChanged.connect(self.on_x_range_changed)
         self.plot_widgets[channel].scene().sigMouseMoved.connect(lambda pos: self.mouseMovedEvent(pos, self.plot_widgets[channel], channel))
-        self.ui.plot_layout.insertWidget(self.ui.plot_layout.count() - 2, self.plot_widgets[channel])
+        self.ui.plot_layout.insertWidget(self.ui.plot_layout.count() - 1, self.plot_widgets[channel])
         self.shutter_lines[channel] = {}  # initialize Storage for shutter lines
         self.plot_items.setdefault(channel, {})
 
@@ -1191,7 +1180,7 @@ class RunViewer(object):
                     self.plot_widgets[channel].show()
                 else:
                     self.plot_widgets[channel].hide()
-
+        self.ui.plot_layout.addWidget(self._time_axis_plot[0])
 
 class Shot(object):
     def __init__(self, path):
