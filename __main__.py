@@ -217,12 +217,23 @@ class RunViewer(object):
         self.channel_model.itemChanged.connect(self.update_plots)
 
         # create a hidden plot widget that all plots can link their x-axis too
-        time_axis_plot = pg.PlotWidget(name='runviewer - time axis link')
+        hidden_plot = pg.PlotWidget(name='runviewer - time axis link')
 
+        hidden_plot.setMinimumHeight(1)
+        hidden_plot.setMaximumHeight(1)
+        hidden_plot.setLabel('bottom', 'Time', units='s')
+        hidden_plot.setLabel('left', " ")
+        hidden_plot.showAxis('right', True)
+        hidden_plot_item = hidden_plot.plot([0, 1], [0, 0])
+        self._hidden_plot = (hidden_plot, hidden_plot_item)
+        self.ui.hidden_plot_layout.addWidget(hidden_plot)
+
+        time_axis_plot = pg.PlotWidget()
         time_axis_plot.setMinimumHeight(120)
         time_axis_plot.setMaximumHeight(120)
         time_axis_plot.setLabel('bottom', 'Time', units='s')
         time_axis_plot.showAxis('right', True)
+        time_axis_plot.setXLink('runviewer - time axis link')
         time_axis_plot.setMouseEnabled(y=False)
         time_axis_plot.getAxis('left').setTicks([])  # hide y ticks in the left & right side. only show time axis
         time_axis_plot.getAxis('right').setTicks([])
@@ -693,7 +704,7 @@ class RunViewer(object):
             largest_stop_time = 1.0
 
         # Update the range of the link plot
-        self._time_axis_plot[1].setData([0, largest_stop_time], [0, 0])
+        self._hidden_plot[1].setData([0, largest_stop_time], [0, 1e-9])
 
         # Update plots
         for i in range(self.channel_model.rowCount()):
@@ -756,7 +767,6 @@ class RunViewer(object):
         self.plot_widgets[channel].setLabel('bottom', 'Time', units='s')
         self.plot_widgets[channel].showAxis('right', True)
         self.plot_widgets[channel].showAxis('bottom', True)
-        self.plot_widgets[channel].setMouseEnabled(y=False)
         self.plot_widgets[channel].setXLink('runviewer - time axis link')
         self.plot_widgets[channel].sigXRangeChanged.connect(self.on_x_range_changed)
         self.plot_widgets[channel].scene().sigMouseMoved.connect(lambda pos: self.mouseMovedEvent(pos, self.plot_widgets[channel], channel))
@@ -1056,7 +1066,7 @@ class RunViewer(object):
         return False
 
     def on_x_axis_reset(self):
-        self._time_axis_plot[0].enableAutoRange(axis=pg.ViewBox.XAxis)
+        self._hidden_plot[0].enableAutoRange(axis=pg.ViewBox.XAxis)
 
     def on_y_axes_reset(self):
         for plot_widget in self.plot_widgets.values():

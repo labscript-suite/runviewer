@@ -1,14 +1,14 @@
-# run as python setup.py build_ext --inplace.
-# This will build the extension file in this directory.
-# You must then put it in the appropriate platform-named
-# subdirectory with an empty __init__.py in order for it
-# to be importable.
-
-from distutils.core import setup, Extension
-import numpy
-
+# This extension is intended to be built with autocython. To trigger a build on a
+# new platform, run the code that imports the extension, or run:
+# python -m autocython
+# in this directory.
+from setuptools import setup
+from setuptools.extension import Extension
+from Cython.Distutils import build_ext
+from autocython import PLATFORM_SUFFIX
+ext_modules = [Extension("resample" + PLATFORM_SUFFIX, ["resample.pyx"])]
 setup(
-    ext_modules = [
-        Extension("resample",sources=["resample.c"], include_dirs = [numpy.get_include()])
-        ]
-    )
+    name = "resample",
+    cmdclass = {"build_ext": build_ext},
+    ext_modules = ext_modules
+)
