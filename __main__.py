@@ -238,6 +238,7 @@ class RunViewer(object):
         time_axis_plot.getAxis('left').setTicks([])  # hide y ticks in the left & right side. only show time axis
         time_axis_plot.getAxis('right').setTicks([])
         time_axis_plot.setLabel('left', 'Slots')
+        time_axis_plot.scene().sigMouseMoved.connect(lambda pos: self.mouseMovedEvent(pos, time_axis_plot, "Slots"))
         time_axis_plot_item = time_axis_plot.plot([0, 1], [0, 0], pen=(255, 255, 255))
         self._time_axis_plot = (time_axis_plot, time_axis_plot_item)
 
@@ -252,9 +253,10 @@ class RunViewer(object):
         markers_plot.showAxis('right', True)
         markers_plot.getAxis('left').setTicks([])
         markers_plot.getAxis('right').setTicks([])
-        markers_plot.setLabel('left', 'Marker')
+        markers_plot.setLabel('left', 'Markers')
         markers_plot.setXLink('runviewer - time axis link')
         markers_plot.setMouseEnabled(y=False)
+        markers_plot.scene().sigMouseMoved.connect(lambda pos: self.mouseMovedEvent(pos, markers_plot, "Markers"))
         markers_plot_item = markers_plot.plot([])
         self._markers_plot = (markers_plot, markers_plot_item)
 
@@ -638,6 +640,9 @@ class RunViewer(object):
         treeview_channels = set(treeview_channels_dict.keys())
         deactivated_treeview_channels = set(deactivated_treeview_channels_dict.keys())
 
+        # speed up working with self.channel_model by blocking signals and later reenabeling them
+        self.channel_model.blockSignals(True)
+
         # find list of channels to work with
         channels_to_add = channels_set.difference(treeview_channels)
         for channel in sorted(channels_to_add):
@@ -666,6 +671,9 @@ class RunViewer(object):
                 item = self.channel_model.item(treeview_channels_dict[channel], i)
                 item.setEnabled(False)
                 item.setSelectable(False)
+
+        self.channel_model.blockSignals(False)
+        self.channel_model.layoutChanged.emit()
 
         # TODO: Also update entries in groups
 
