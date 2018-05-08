@@ -1477,7 +1477,6 @@ class Shot(object):
             self.add_shutter_times(shutters)
 
     def scaled_times(self, channel):
-        print('1234567')
         if self.cached_scaler != app.scalehandler:
             self.cached_scaler = app.scalehandler
             self._scaled_x = {}
