@@ -485,7 +485,8 @@ class RunViewer(object):
 
     def _update_non_linear_time(self, changed_shot=False):
         old_scalerhandler = self.scalehandler
-        shot = self.ui.markers_comboBox.currentData()
+        marker_index = self.ui.markers_comboBox.currentIndex()
+        shot = self.ui.markers_comboBox.itemData(marker_index)
         if shot is not None and self.scale_time:
             self.scalehandler = shot.scalehandler
         else:
