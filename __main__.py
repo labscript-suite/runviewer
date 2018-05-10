@@ -342,7 +342,8 @@ class RunViewer(object):
             plot.removeItem(line)
         self.all_marker_items = {}
 
-        shot = self.ui.markers_comboBox.currentData()
+        marker_index = self.ui.markers_comboBox.currentIndex()
+        shot = self.ui.markers_comboBox.itemData(marker_index)
         self.all_markers = shot.markers if index > 0 else {}
 
         times = sorted(list(self.all_markers.keys()))
@@ -532,7 +533,7 @@ class RunViewer(object):
                 icon = QIcon(pixmap)
                 colour_item.setData(lambda clist=self.shot_colour_delegate._colours, colour=colour: int_to_enum(clist, colour), Qt.UserRole)
                 colour_item.setData(icon, Qt.DecorationRole)
-                shot_combobox_index = self.ui.markers_comboBox.findData(item.data())
+                shot_combobox_index = self.ui.markers_comboBox.findText(os.path.basename(item.data().path))
                 self.ui.markers_comboBox.model().item(shot_combobox_index).setEnabled(True)
                 if self.ui.markers_comboBox.currentIndex() == 0:
                     self.ui.markers_comboBox.setCurrentIndex(shot_combobox_index)
@@ -544,7 +545,7 @@ class RunViewer(object):
             else:
                 # colour = None
                 # icon = None
-                shot_combobox_index = self.ui.markers_comboBox.findData(item.data())
+                shot_combobox_index = self.ui.markers_comboBox.findText(os.path.basename(item.data().path))
                 self.ui.markers_comboBox.model().item(shot_combobox_index).setEnabled(False)
                 if shot_combobox_index == self.ui.markers_comboBox.currentIndex():
                     self.ui.markers_comboBox.setCurrentIndex(0)
@@ -602,7 +603,7 @@ class RunViewer(object):
         # items.append(path_item)
         self.shot_model.appendRow(items)
         self.ui.markers_comboBox.addItem(os.path.basename(shot.path), shot)
-        shot_combobox_index = self.ui.markers_comboBox.findData(shot)
+        shot_combobox_index = self.ui.markers_comboBox.findText(os.path.basename(shot.path))
         self.ui.markers_comboBox.model().item(shot_combobox_index).setEnabled(False)
 
         # only do this if we are checking the shot we are adding
