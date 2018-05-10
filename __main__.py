@@ -429,7 +429,8 @@ class RunViewer(object):
             plot.removeItem(line)
         self.all_marker_items = {}
 
-        shot = self.ui.markers_comboBox.currentData()
+        marker_index = self.ui.markers_comboBox.currentIndex()
+        shot = self.ui.markers_comboBox.itemData(marker_index)
         self.all_markers = shot.markers if index > 0 else {}
 
         self._update_non_linear_time(changed_shot=True)
@@ -476,7 +477,13 @@ class RunViewer(object):
                     unscaled_t = coord_pos.x()
                 if unscaled_t is not None:
                     pos = QPoint(glob_pos.x(), glob_pos.y())
-                    text = "Plot: {} \nTime: {:.9f}s\nValue: {:.2f}".format(name, unscaled_t, coord_pos.y())
+                    plot_data = ui.plotItem.listDataItems()[0].getData()
+                    if plot_data[0] is not None and unscaled_t is not None:
+                        nearest_index = numpy.abs(plot_data[0] - unscaled_t).argmin() - 1
+                        y_val = "{:.2f}".format(plot_data[1][nearest_index])
+                    else:
+                        y_val = '-'
+                    text = "Plot: {} \nTime: {:.9f}s\nValue: {}".format(name, unscaled_t, y_val)
                     QToolTip.showText(pos, text)
 
     def _toggle_non_linear_time(self, state):
@@ -673,7 +680,7 @@ class RunViewer(object):
                 icon = QIcon(pixmap)
                 colour_item.setData(lambda clist=self.shot_colour_delegate._colours, colour=colour: int_to_enum(clist, colour), Qt.UserRole)
                 colour_item.setData(icon, Qt.DecorationRole)
-                shot_combobox_index = self.ui.markers_comboBox.findData(item.data())
+                shot_combobox_index = self.ui.markers_comboBox.findText(os.path.basename(item.data().path))
                 self.ui.markers_comboBox.model().item(shot_combobox_index).setEnabled(True)
                 if self.ui.markers_comboBox.currentIndex() == 0:
                     self.ui.markers_comboBox.setCurrentIndex(shot_combobox_index)
@@ -685,7 +692,7 @@ class RunViewer(object):
             else:
                 # colour = None
                 # icon = None
-                shot_combobox_index = self.ui.markers_comboBox.findData(item.data())
+                shot_combobox_index = self.ui.markers_comboBox.findText(os.path.basename(item.data().path))
                 self.ui.markers_comboBox.model().item(shot_combobox_index).setEnabled(False)
                 if shot_combobox_index == self.ui.markers_comboBox.currentIndex():
                     self.ui.markers_comboBox.setCurrentIndex(0)
@@ -743,7 +750,7 @@ class RunViewer(object):
         # items.append(path_item)
         self.shot_model.appendRow(items)
         self.ui.markers_comboBox.addItem(os.path.basename(shot.path), shot)
-        shot_combobox_index = self.ui.markers_comboBox.findData(shot)
+        shot_combobox_index = self.ui.markers_comboBox.findText(os.path.basename(shot.path))
         self.ui.markers_comboBox.model().item(shot_combobox_index).setEnabled(False)
 
         # only do this if we are checking the shot we are adding
@@ -1427,6 +1434,15 @@ class Shot(object):
         self._channels[name] = {'device_name': parent_device_name, 'port': connection}
         self._traces[name] = trace
 
+        # add shutter times
+        try:
+            con = self.connection_table.find_by_name(name)
+            if con.device_class == "Shutter":
+                self.add_shutter_times([(name, con.properties['open_state'])])
+        except KeyError:
+            pass
+
+
     # Temporary solution to physical shutter times
     def add_shutter_times(self, shutters):
         for name, open_state in shutters:
@@ -1463,19 +1479,12 @@ class Shot(object):
             else:
                 print('Failed to load device (unknown name, device object does not have attribute name)')
 
-        # get all Shutters with their open_state
-        try:
-            shutters = [(name, child_con.properties['open_state']) for name, child_con in device.child_list.items() if child_con.device_class == "Shutter"]
-        except KeyError:
-            # no openstate in connection table
-            with h5py.File(self.path, 'r') as file:
-                if "runviewer" in file:
-                    if "shutter_times" in file["runviewer"]:
-                        for name, val in file["runviewer"]["shutter_times"].attrs.items():
-                            self._shutter_times[name] = {float(key_value.split(":")[0]): int(key_value.split(":")[1]) for key_value in val.strip('{}}').split(",")}
-            pass
-        else:
-            self.add_shutter_times(shutters)
+        # backwards compat
+        with h5py.File(self.path, 'r') as file:
+            if "runviewer" in file:
+                if "shutter_times" in file["runviewer"]:
+                    for name, val in file["runviewer"]["shutter_times"].attrs.items():
+                        self._shutter_times[name] = {float(key_value.split(":")[0]): int(key_value.split(":")[1]) for key_value in val.strip('{}}').split(",")}
 
     def scaled_times(self, channel):
         if self.cached_scaler != app.scalehandler:
