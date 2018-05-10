@@ -138,7 +138,7 @@ def int_to_enum(enum_list, value):
 
 class ScaleHandler():
 
-    def __init__(self, input_times, stop_time, target_length=1.0):
+    def __init__(self, input_times, stop_time):
         # input_times is a list (may be unsorted) of times which should be scaled evenly with target_length
         # an input list of [1,2,4,6] and target_length of 1.0 will result in:
         # get_scaled_time(1)   -> 1
@@ -158,6 +158,7 @@ class ScaleHandler():
             raise Exception('shot contains at least one marker before t=0 and/or after the stop time. Non-linear time currently does not support this.')
 
         unscaled_times = sorted(input_times)
+        target_length = self.org_stop_time / float(len(unscaled_times)-1)
         scaled_times = [target_length*i for i in range(len(input_times))]
 
         # append values for linear scaling before t=0 and after stop time
@@ -1366,8 +1367,7 @@ class Shot(object):
 
         self._load_device(master_pseudoclock_device)
 
-        length_slot = self.stop_time / float(len(self._markers)+1)
-        self._scalehandler = ScaleHandler(self._markers.keys(), self.stop_time, length_slot)
+        self._scalehandler = ScaleHandler(self._markers.keys(), self.stop_time)
 
     def _load_markers(self):
         with h5py.File(self.path, 'r') as file:
