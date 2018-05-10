@@ -68,6 +68,7 @@ from qtutils.qt.QtWidgets import *
 from qtutils.qt.QtCore import pyqtSignal as Signal
 
 import numpy
+from scipy import interpolate
 
 # must be imported after PySide/PyQt4
 import pyqtgraph as pg
@@ -135,34 +136,6 @@ def int_to_enum(enum_list, value):
     return value
 
 
-class DataSlot():
-
-    def __init__(self, prev_point, start, end, resulting_length):
-        start = float(start)
-        end = float(end)
-        resulting_length = float(resulting_length)
-
-        if start == end:
-            raise Exception("Start and End value must not be equal! start={:f}; end={:f}".format(start, end))
-
-        self.org_start = start  # original start point
-        self.org_end = end   # original end point
-        self.resulting_length = resulting_length
-
-        if prev_point is None:  # this is the first point
-            self.scaled_start = start
-            self.scaled_end = self.scaled_start + resulting_length  # /(end-start)
-        else:
-            self.scaled_start = prev_point.scaled_end
-            self.scaled_end = self.scaled_start + resulting_length  # /(end-start)
-
-    def get_scaled_time(self, input_t):
-        return self.scaled_start + self.resulting_length * (input_t - self.org_start) / (self.org_end - self.org_start)
-
-    def get_unscaled_time(self, input_scaled_t):
-        return self.org_start + (self.org_end - self.org_start) * (input_scaled_t - self.scaled_start) / self.resulting_length
-
-
 class ScaleHandler():
 
     def __init__(self, input_times, stop_time, target_length=1.0):
@@ -173,48 +146,28 @@ class ScaleHandler():
         # get_scaled_time(3)   -> 2.5
         # get_scaled_time(4)   -> 3
         # get_scaled_time(5)   -> 3.5   ...
-        self.internal_list = []
+        self.org_stop_time = float(stop_time)
 
-        self.org_stop_time = stop_time
+        if 0 not in input_times:
+            input_times.append(0)
 
-        self.last_index = 0
+        if self.org_stop_time not in input_times:
+            input_times.append(self.org_stop_time)
 
-        last_slot = None
-        last_x = 0
-        for t in sorted(input_times):
-            if t == 0:
-                continue  # skip the first point if it is 0. it will be automatically added in the next iteration
-            last_slot = DataSlot(last_slot, last_x, t, target_length)
-            self.internal_list.append(last_slot)
-            last_x = t
+        if not all((x >= 0) and (x <= self.org_stop_time) for x in input_times):
+            raise Exception('shot contains at least one marker before t=0 and/or after the stop time. Non-linear time currently does not support this.')
 
-        last_slot = DataSlot(last_slot, last_x, stop_time, target_length)  # add last scaling information from last marker to end
-        self.internal_list.append(last_slot)
+        unscaled_times = sorted(input_times)
+        scaled_times = [target_length*i for i in range(len(input_times))]
 
-        self.get_scaled_time = numpy.vectorize(self._get_scaled_time)
-        self.get_unscaled_time = numpy.vectorize(self._get_unscaled_time)
+        # append values for linear scaling before t=0 and after stop time
+        unscaled_times = [-1e-9] + unscaled_times + [self.org_stop_time + 1e-9]
+        scaled_times = [-1e-9] + scaled_times + [self.org_stop_time + 1e-9]
+
+        self.get_scaled_time = interpolate.interp1d(unscaled_times, scaled_times, assume_sorted=False, bounds_error=False, fill_value='extrapolate')
+        self.get_unscaled_time = interpolate.interp1d(scaled_times, unscaled_times, assume_sorted=False, bounds_error=False, fill_value='extrapolate')
 
         self.scaled_stop_time = self.get_scaled_time(self.org_stop_time)
-
-    def _get_scaled_time(self, input_t):
-        # this method returns the scaled time in the evenly distributed scale.
-        last_slot = self.internal_list[self.last_index]  # faster for multiple input times in the same time slot, so we dont have to search the right interval.
-        if last_slot.org_start <= input_t and last_slot.org_end >= input_t:
-            return last_slot.get_scaled_time(input_t)
-        else:
-            for index, i in enumerate(self.internal_list):
-                if i.org_start <= input_t and i.org_end >= input_t:
-                    self.last_index = index
-                    return i.get_scaled_time(input_t)
-
-        # time is greater then stop_time
-        return input_t - self.org_stop_time + self.scaled_stop_time
-
-    def _get_unscaled_time(self, input_scaled_t):
-        for index, i in enumerate(self.internal_list):
-            if i.scaled_start <= input_scaled_t and i.scaled_end >= input_scaled_t:
-                return i.get_unscaled_time(input_scaled_t)
-        return input_scaled_t - self.scaled_stop_time + self.org_stop_time
 
 
 class ColourDelegate(QItemDelegate):
@@ -897,7 +850,6 @@ class RunViewer(object):
                     for t, m in self.all_markers.items():
                         color = m['color']
                         color = QColor(color[0], color[1], color[2])
-                        print(self.scalehandler, self.scale_time)
                         if self.scale_time and self.scalehandler is not None:
                             t = self.scalehandler.get_scaled_time(t)
                         line = self.plot_widgets[channel].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=Qt.DashLine))
