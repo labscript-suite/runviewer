@@ -381,7 +381,13 @@ class RunViewer(object):
                 unscaled_t = coord_pos.x()
                 if unscaled_t is not None:
                     pos = QPoint(glob_pos.x(), glob_pos.y())
-                    text = "Plot: {} \nTime: {:.9f}s\nValue: {:.2f}".format(name, unscaled_t, coord_pos.y())
+                    plot_data = ui.plotItem.listDataItems()[0].getData()
+                    if plot_data[0] is not None and unscaled_t is not None:
+                        nearest_index = numpy.abs(plot_data[0] - unscaled_t).argmin() - 1
+                        y_val = "{:.2f}".format(plot_data[1][nearest_index])
+                    else:
+                        y_val = '-'
+                    text = "Plot: {} \nTime: {:.9f}s\nValue: {}".format(name, unscaled_t, y_val)
                     QToolTip.showText(pos, text)
 
     def _process_shots(self):
