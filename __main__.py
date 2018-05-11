@@ -437,7 +437,7 @@ class RunViewer(object):
                         y_val = "{:.2f}".format(plot_data[1][nearest_index])
                     else:
                         y_val = '-'
-                    text = "Plot: {} \nTime: {:.9f}s\nValue: {}".format(name, unscaled_t, y_val)
+                    text = "Plot: {} \nTime: {:.9f}s\nValue: {}".format(name, float(unscaled_t), y_val)
                     QToolTip.showText(pos, text)
 
     def _toggle_non_linear_time(self, state):
