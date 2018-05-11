@@ -426,9 +426,9 @@ class RunViewer(object):
 
             if len(self.get_selected_shots_and_colours()) > 0:
                 if self.scale_time and self.scalehandler is not None:
-                    unscaled_t = self.scalehandler.get_unscaled_time(coord_pos.x())
+                    unscaled_t = float(self.scalehandler.get_unscaled_time(coord_pos.x()))
                 else:
-                    unscaled_t = coord_pos.x()
+                    unscaled_t = float(coord_pos.x())
                 if unscaled_t is not None:
                     pos = QPoint(glob_pos.x(), glob_pos.y())
                     plot_data = ui.plotItem.listDataItems()[0].getData()
@@ -488,7 +488,13 @@ class RunViewer(object):
             for plot in self.plot_widgets.values():
                 plot.getAxis("bottom").setTicks(None)
 
-
+        for plot in self.plot_widgets.values():
+            for item in plot.getPlotItem().items:
+                if isinstance(item, pg.PlotDataItem):
+                    if old_scalerhandler is not None:
+                        item.setData(self.scalehandler.get_scaled_time(old_scalerhandler.get_unscaled_time(item.xData)), item.yData)
+                    else:
+                        item.setData(self.scalehandler.get_scaled_time(item.xData), item.yData)
 
         self._resample = True
 
