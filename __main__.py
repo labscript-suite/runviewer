@@ -455,15 +455,6 @@ class RunViewer(object):
         shot = self.ui.markers_comboBox.itemData(marker_index)
         markers_unscaled = sorted(list(self.all_markers.keys()))
         
-        ## TODO: Rather than doing this check here, let's add in markers for t=0 and t=stop_time when the markers are created!
-        if 0 not in markers_unscaled:
-            markers_unscaled.append(0)
-            markers_unscaled = sorted(markers_unscaled)
-            
-        if shot.stop_time not in markers_unscaled:
-            markers_unscaled.append(shot.stop_time)
-            markers_unscaled = sorted(markers_unscaled)
-        ## end TODO
         target_length = shot.stop_time / float(len(markers_unscaled)-1)
         scaled_times = [target_length*i for i in range(len(markers_unscaled))]
         self.old_scalerhandler = self.scalehandler
@@ -1410,6 +1401,10 @@ class Shot(object):
                     color = list(map(int, props[0].split(":")[1].strip(" ()").split(",")))
                     label = props[1].split(":")[1]
                     self._markers[float(time)] = {'color': color, 'label': label}
+            if 0 not in self._markers:
+                self._markers[0] = {'color': [0,0,0], 'label': 'Start'}
+            if self.stop_time not in self._markers:
+                self._markers[self.stop_time] = {'color': [0,0,0], 'label' : 'End'}
 
     def add_trace(self, name, trace, parent_device_name, connection):
         name = str(name)
