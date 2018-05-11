@@ -68,6 +68,7 @@ from qtutils.qt.QtWidgets import *
 from qtutils.qt.QtCore import pyqtSignal as Signal
 
 import numpy
+from scipy import interpolate
 
 # must be imported after PySide/PyQt4
 import pyqtgraph as pg
@@ -133,6 +134,41 @@ def int_to_enum(enum_list, value):
         if item == value:
             return item
     return value
+
+
+class ScaleHandler():
+
+    def __init__(self, input_times, stop_time):
+        # input_times is a list (may be unsorted) of times which should be scaled evenly with target_length
+        # an input list of [1,2,4,6] and target_length of 1.0 will result in:
+        # get_scaled_time(1)   -> 1
+        # get_scaled_time(1.5) -> 1.5
+        # get_scaled_time(3)   -> 2.5
+        # get_scaled_time(4)   -> 3
+        # get_scaled_time(5)   -> 3.5   ...
+        self.org_stop_time = float(stop_time)
+
+        if 0 not in input_times:
+            input_times.append(0)
+
+        if self.org_stop_time not in input_times:
+            input_times.append(self.org_stop_time)
+
+        if not all((x >= 0) and (x <= self.org_stop_time) for x in input_times):
+            raise Exception('shot contains at least one marker before t=0 and/or after the stop time. Non-linear time currently does not support this.')
+
+        unscaled_times = sorted(input_times)
+        target_length = self.org_stop_time / float(len(unscaled_times)-1)
+        scaled_times = [target_length*i for i in range(len(input_times))]
+
+        # append values for linear scaling before t=0 and after stop time
+        unscaled_times = [-1e-9] + unscaled_times + [self.org_stop_time + 1e-9]
+        scaled_times = [-1e-9] + scaled_times + [self.org_stop_time + 1e-9]
+
+        self.get_scaled_time = interpolate.interp1d(unscaled_times, scaled_times, assume_sorted=False, bounds_error=False, fill_value='extrapolate')
+        self.get_unscaled_time = interpolate.interp1d(scaled_times, unscaled_times, assume_sorted=False, bounds_error=False, fill_value='extrapolate')
+
+        self.scaled_stop_time = self.get_scaled_time(self.org_stop_time)
 
 
 class ColourDelegate(QItemDelegate):
@@ -277,6 +313,7 @@ class RunViewer(object):
         self.ui.reset_x_axis.setIcon(QIcon(':/qtutils/fugue/clock-history'))
         self.ui.reset_y_axis.setIcon(QIcon(':/qtutils/fugue/magnifier-history'))
         self.ui.toggle_tooltip.setIcon(QIcon(':/qtutils/fugue/ui-tooltip-balloon'))
+        self.ui.non_linear_time.setIcon(QIcon(':/qtutils/fugue/ui-ruler'))
 
         self.ui.actionOpen_Shot.setIcon(QIcon(':/qtutils/fugue/plus'))
         self.ui.actionQuit.setIcon(QIcon(':/qtutils/fugue/cross-button'))
@@ -298,6 +335,7 @@ class RunViewer(object):
         self.ui.disable_selected_shots.clicked.connect(self._disable_selected_shots)
         self.ui.add_shot.clicked.connect(self.on_add_shot)
         self.ui.markers_comboBox.currentIndexChanged.connect(self._update_markers)
+        self.ui.non_linear_time.toggled.connect(self._toggle_non_linear_time)
         self.ui.remove_shots.clicked.connect(self.on_remove_shots)
 
         self.ui.actionOpen_Shot.triggered.connect(self.on_add_shot)
@@ -337,6 +375,9 @@ class RunViewer(object):
         self._shots_to_process_thread.daemon = True
         self._shots_to_process_thread.start()
 
+        self.scale_time = False
+        self.scalehandler = None
+
     def _update_markers(self, index):
         for line, plot in self.all_marker_items.items():
             plot.removeItem(line)
@@ -346,12 +387,17 @@ class RunViewer(object):
         shot = self.ui.markers_comboBox.itemData(marker_index)
         self.all_markers = shot.markers if index > 0 else {}
 
+        self._update_non_linear_time(changed_shot=True)
+
         times = sorted(list(self.all_markers.keys()))
         for i, (t, m) in enumerate(sorted(self.all_markers.items())):
             if i < len(times)-1:
                 delta_t = times[i+1] - t
             else:
                 delta_t = shot.stop_time - t
+
+            if self.scale_time:
+                t = self.scalehandler.get_scaled_time(t)
 
             color = m['color']
             color = QColor(color[0], color[1], color[2])
@@ -379,7 +425,10 @@ class RunViewer(object):
             coord_pos = ui.plotItem.vb.mapSceneToView(position)
 
             if len(self.get_selected_shots_and_colours()) > 0:
-                unscaled_t = coord_pos.x()
+                if self.scale_time and self.scalehandler is not None:
+                    unscaled_t = self.scalehandler.get_unscaled_time(coord_pos.x())
+                else:
+                    unscaled_t = coord_pos.x()
                 if unscaled_t is not None:
                     pos = QPoint(glob_pos.x(), glob_pos.y())
                     plot_data = ui.plotItem.listDataItems()[0].getData()
@@ -388,8 +437,60 @@ class RunViewer(object):
                         y_val = "{:.2f}".format(plot_data[1][nearest_index])
                     else:
                         y_val = '-'
-                    text = "Plot: {} \nTime: {:.9f}s\nValue: {}".format(name, unscaled_t, y_val)
+                    text = "Plot: {} \nTime: {:.9f}s\nValue: {}".format(name, float(unscaled_t), y_val)
                     QToolTip.showText(pos, text)
+
+    def _toggle_non_linear_time(self, state):
+        self.scale_time = state
+        self._update_non_linear_time()
+
+    def _update_non_linear_time(self, changed_shot=False):
+        old_scalerhandler = self.scalehandler
+        marker_index = self.ui.markers_comboBox.currentIndex()
+        shot = self.ui.markers_comboBox.itemData(marker_index)
+        if shot is not None and self.scale_time:
+            self.scalehandler = shot.scalehandler
+        else:
+            self.scalehandler = None
+
+        # combine markers and shutter lines
+        markers = list(self.all_marker_items.keys())
+        for channel in self.shutter_lines:
+            for shot in self.shutter_lines[channel]:
+                for line in self.shutter_lines[channel][shot][0]:
+                    markers.append(line)
+                for line in self.shutter_lines[channel][shot][1]:
+                    markers.append(line)
+
+        # Move all Markes/Shutter Lines to new position
+        for marker in markers:
+            pos = marker.pos()
+
+            if old_scalerhandler is None:
+                unscaled_x = pos.x()
+            else:
+                unscaled_x = old_scalerhandler.get_unscaled_time(pos.x())
+
+            if self.scale_time and self.scalehandler is not None:
+                new_x = self.scalehandler.get_scaled_time(unscaled_x)
+            else:
+                new_x = unscaled_x
+
+            pos.setX(new_x)
+            marker.setPos(pos)
+
+        if shot is not None and self.scale_time:
+            self._time_axis_plot[0].getAxis("bottom").setTicks([[[0, 0], [shot.stop_time, shot.stop_time]]])
+            for plot in self.plot_widgets.values():
+                plot.getAxis("bottom").setTicks([[[0, 0], [shot.stop_time, shot.stop_time]]])
+        else:
+            self._time_axis_plot[0].getAxis("bottom").setTicks(None)
+            for plot in self.plot_widgets.values():
+                plot.getAxis("bottom").setTicks(None)
+
+
+
+        self._resample = True
 
     def _process_shots(self):
         while True:
@@ -750,6 +851,8 @@ class RunViewer(object):
                     for t, m in self.all_markers.items():
                         color = m['color']
                         color = QColor(color[0], color[1], color[2])
+                        if self.scale_time and self.scalehandler is not None:
+                            t = self.scalehandler.get_scaled_time(t)
                         line = self.plot_widgets[channel].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=Qt.DashLine))
                         self.all_marker_items[line] = self.plot_widgets[channel]
 
@@ -1048,7 +1151,10 @@ class RunViewer(object):
                                 # doesn't immediately go off the edge of the data, and the
                                 # next resampling might have time to fill in more data before
                                 # the user sees any empty space.
-                                xnew, ynew = self.resample(shot.traces[channel][0], shot.traces[channel][1], xmin, xmax, shot.stop_time, dx)
+                                if self.scale_time:
+                                    xnew, ynew = self.resample(shot.scaled_times(channel), shot.traces[channel][1], xmin, xmax, shot.stop_time, dx)
+                                else:
+                                    xnew, ynew = self.resample(shot.traces[channel][0], shot.traces[channel][1], xmin, xmax, shot.stop_time, dx)
                                 inmain(self.plot_items[channel][shot].setData, xnew, ynew, pen=pg.mkPen(QColor(colour), width=2), stepMode=True)
                             except Exception:
                                 #self._resample = True
@@ -1197,6 +1303,7 @@ class RunViewer(object):
                     self.plot_widgets[channel].hide()
         self.ui.plot_layout.addWidget(self._time_axis_plot[0])
 
+
 class Shot(object):
     def __init__(self, path):
         self.path = path
@@ -1207,6 +1314,9 @@ class Shot(object):
         self._channels = None
         # store list of markers
         self._markers = None
+        self.cached_scaler = None
+        self._scalehandler = None
+        self._scaled_x = {}
 
         # store list of shutter changes and callibrations
         self._shutter_times = None
@@ -1256,6 +1366,8 @@ class Shot(object):
         master_pseudoclock_device = self.connection_table.find_by_name(self.master_pseudoclock_name)
 
         self._load_device(master_pseudoclock_device)
+
+        self._scalehandler = ScaleHandler(self._markers.keys(), self.stop_time)
 
     def _load_markers(self):
         with h5py.File(self.path, 'r') as file:
@@ -1326,6 +1438,15 @@ class Shot(object):
                     for name, val in file["runviewer"]["shutter_times"].attrs.items():
                         self._shutter_times[name] = {float(key_value.split(":")[0]): int(key_value.split(":")[1]) for key_value in val.strip('{}}').split(",")}
 
+    def scaled_times(self, channel):
+        if self.cached_scaler != app.scalehandler:
+            self.cached_scaler = app.scalehandler
+            self._scaled_x = {}
+        if channel not in self._scaled_x:
+            self._scaled_x[channel] = self.cached_scaler.get_scaled_time(self._traces[channel][0])
+
+        return self._scaled_x[channel]
+
     @property
     def channels(self):
         if self._channels is None:
@@ -1356,6 +1477,12 @@ class Shot(object):
         if self._shutter_times is None:
             self._load()
         return self._shutter_times
+
+    @property
+    def scalehandler(self):
+        if self._scalehandler is None:
+            self._load()
+        return self._scalehandler
 
 
 class TempShot(Shot):

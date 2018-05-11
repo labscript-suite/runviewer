@@ -445,6 +445,16 @@ QToolButton:hover:checked {
            </widget>
           </item>
           <item>
+           <widget class="QPushButton" name="non_linear_time">
+            <property name="toolTip">
+             <string>Nonlinear Time</string>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QComboBox" name="markers_comboBox">
             <item>
              <property name="text">
