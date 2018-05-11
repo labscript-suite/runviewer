@@ -492,7 +492,7 @@ class RunViewer(object):
             for item in plot.getPlotItem().items:
                 if isinstance(item, pg.PlotDataItem):
                     if old_scalerhandler is not None:
-                        item.setData(self.scalehandler.get_scaled_time(old_scalerhandler.get_unscaled_time(item.xData)), item.yData)
+                        item.setData(old_scalerhandler.get_unscaled_time(item.xData), item.yData)
                     else:
                         item.setData(self.scalehandler.get_scaled_time(item.xData), item.yData)
 
