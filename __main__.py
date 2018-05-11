@@ -310,10 +310,11 @@ class RunViewer(object):
         self.ui.channel_move_up.setIcon(QIcon(':/qtutils/fugue/arrow-090'))
         self.ui.channel_move_down.setIcon(QIcon(':/qtutils/fugue/arrow-270'))
         self.ui.channel_move_to_bottom.setIcon(QIcon(':/qtutils/fugue/arrow-stop-270'))
-        self.ui.reset_x_axis.setIcon(QIcon(':/qtutils/fugue/clock-history'))
-        self.ui.reset_y_axis.setIcon(QIcon(':/qtutils/fugue/magnifier-history'))
+        self.ui.reset_x_axis.setIcon(QIcon(':/qtutils/fugue/layer-resize-replicate'))
+        self.ui.reset_y_axis.setIcon(QIcon(':/qtutils/fugue/layer-resize-replicate-vertical'))
         self.ui.toggle_tooltip.setIcon(QIcon(':/qtutils/fugue/ui-tooltip-balloon'))
-        self.ui.non_linear_time.setIcon(QIcon(':/qtutils/fugue/ui-ruler'))
+        self.ui.linear_time.setIcon(QIcon(':/qtutils/fugue/clock-history'))
+        self.ui.equal_space_time.setIcon(QIcon(':/qtutils/fugue/border-vertical-all'))
 
         self.ui.actionOpen_Shot.setIcon(QIcon(':/qtutils/fugue/plus'))
         self.ui.actionQuit.setIcon(QIcon(':/qtutils/fugue/cross-button'))
@@ -335,7 +336,9 @@ class RunViewer(object):
         self.ui.disable_selected_shots.clicked.connect(self._disable_selected_shots)
         self.ui.add_shot.clicked.connect(self.on_add_shot)
         self.ui.markers_comboBox.currentIndexChanged.connect(self._update_markers)
-        self.ui.non_linear_time.toggled.connect(self._toggle_non_linear_time)
+        # self.ui.non_linear_time.toggled.connect(self._toggle_non_linear_time)
+        self.ui.linear_time.clicked.connect(self._reset_linear_time)
+        self.ui.equal_space_time.clicked.connect(self._space_markers_evenly)
         self.ui.remove_shots.clicked.connect(self.on_remove_shots)
 
         self.ui.actionOpen_Shot.triggered.connect(self.on_add_shot)
@@ -440,10 +443,16 @@ class RunViewer(object):
                     text = "Plot: {} \nTime: {:.9f}s\nValue: {}".format(name, unscaled_t, y_val)
                     QToolTip.showText(pos, text)
 
-    def _toggle_non_linear_time(self, state):
-        self.scale_time = state
-        self._update_non_linear_time()
 
+    
+    def _reset_linear_time(self):
+        self.scale_time = False
+        self._update_non_linear_time()
+        
+    def _space_markers_evenly(self):
+        self.scale_time = True
+        self._update_non_linear_time()
+    
     def _update_non_linear_time(self, changed_shot=False):
         old_scalerhandler = self.scalehandler
         marker_index = self.ui.markers_comboBox.currentIndex()

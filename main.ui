@@ -411,7 +411,7 @@ QToolButton:hover:checked {
           <item>
            <widget class="QPushButton" name="reset_x_axis">
             <property name="toolTip">
-             <string>Reset time axis</string>
+             <string>Show all time</string>
             </property>
             <property name="text">
              <string/>
@@ -421,7 +421,7 @@ QToolButton:hover:checked {
           <item>
            <widget class="QPushButton" name="reset_y_axis">
             <property name="toolTip">
-             <string>Reset Y axis</string>
+             <string>Autoscale y-axis</string>
             </property>
             <property name="text">
              <string/>
@@ -445,12 +445,22 @@ QToolButton:hover:checked {
            </widget>
           </item>
           <item>
-           <widget class="QPushButton" name="non_linear_time">
+           <widget class="QPushButton" name="linear_time">
             <property name="toolTip">
-             <string>Nonlinear Time</string>
+             <string>Reset time axis</string>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="equal_space_time">
+            <property name="toolTip">
+             <string>Space markers evenly</string>
             </property>
             <property name="checkable">
-             <bool>true</bool>
+             <bool>false</bool>
             </property>
            </widget>
           </item>
@@ -575,8 +585,8 @@ QToolButton:hover:checked {
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>365</width>
-                  <height>701</height>
+                  <width>481</width>
+                  <height>706</height>
                  </rect>
                 </property>
                 <layout class="QVBoxLayout" name="verticalLayout_5">
@@ -643,7 +653,7 @@ QToolButton:hover:checked {
      <x>0</x>
      <y>0</y>
      <width>992</width>
-     <height>22</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
