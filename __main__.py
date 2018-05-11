@@ -138,7 +138,7 @@ def int_to_enum(enum_list, value):
 
 class ScaleHandler():
 
-    def __init__(self, input_times, stop_time):
+    def __init__(self, input_times, target_positions, stop_time):
         # input_times is a list (may be unsorted) of times which should be scaled evenly with target_length
         # an input list of [1,2,4,6] and target_length of 1.0 will result in:
         # get_scaled_time(1)   -> 1
@@ -148,18 +148,16 @@ class ScaleHandler():
         # get_scaled_time(5)   -> 3.5   ...
         self.org_stop_time = float(stop_time)
 
-        if 0 not in input_times:
-            input_times.append(0)
+        
 
-        if self.org_stop_time not in input_times:
-            input_times.append(self.org_stop_time)
+        
 
         if not all((x >= 0) and (x <= self.org_stop_time) for x in input_times):
             raise Exception('shot contains at least one marker before t=0 and/or after the stop time. Non-linear time currently does not support this.')
 
         unscaled_times = sorted(input_times)
-        target_length = self.org_stop_time / float(len(unscaled_times)-1)
-        scaled_times = [target_length*i for i in range(len(input_times))]
+        scaled_times = sorted(target_positions)
+        
 
         # append values for linear scaling before t=0 and after stop time
         unscaled_times = [-1e-9] + unscaled_times + [self.org_stop_time + 1e-9]
@@ -447,19 +445,36 @@ class RunViewer(object):
     
     def _reset_linear_time(self):
         self.scale_time = False
+        self.old_scalerhandler = self.scalehandler
+        self.scalehandler = None
         self._update_non_linear_time()
         
     def _space_markers_evenly(self):
         self.scale_time = True
+        marker_index = self.ui.markers_comboBox.currentIndex()
+        shot = self.ui.markers_comboBox.itemData(marker_index)
+        markers_unscaled = sorted(list(self.all_markers.keys()))
+        
+        ## TODO: Rather than doing this check here, let's add in markers for t=0 and t=stop_time when the markers are created!
+        if 0 not in markers_unscaled:
+            markers_unscaled.append(0)
+            markers_unscaled = sorted(markers_unscaled)
+            
+        if shot.stop_time not in markers_unscaled:
+            markers_unscaled.append(shot.stop_time)
+            markers_unscaled = sorted(markers_unscaled)
+        ## end TODO
+        target_length = shot.stop_time / float(len(markers_unscaled)-1)
+        scaled_times = [target_length*i for i in range(len(markers_unscaled))]
+        self.old_scalerhandler = self.scalehandler
+        self.scalehandler = ScaleHandler(markers_unscaled,scaled_times, shot.stop_time)
         self._update_non_linear_time()
     
     def _update_non_linear_time(self, changed_shot=False):
-        old_scalerhandler = self.scalehandler
+        
         marker_index = self.ui.markers_comboBox.currentIndex()
         shot = self.ui.markers_comboBox.itemData(marker_index)
-        if shot is not None and self.scale_time:
-            self.scalehandler = shot.scalehandler
-        else:
+        if shot is None:
             self.scalehandler = None
 
         # combine markers and shutter lines
@@ -475,10 +490,10 @@ class RunViewer(object):
         for marker in markers:
             pos = marker.pos()
 
-            if old_scalerhandler is None:
+            if self.old_scalerhandler is None:
                 unscaled_x = pos.x()
             else:
-                unscaled_x = old_scalerhandler.get_unscaled_time(pos.x())
+                unscaled_x = self.old_scalerhandler.get_unscaled_time(pos.x())
 
             if self.scale_time and self.scalehandler is not None:
                 new_x = self.scalehandler.get_scaled_time(unscaled_x)
@@ -500,8 +515,8 @@ class RunViewer(object):
         for plot in self.plot_widgets.values():
             for item in plot.getPlotItem().items:
                 if isinstance(item, pg.PlotDataItem):
-                    if old_scalerhandler is not None:
-                        item.setData(old_scalerhandler.get_unscaled_time(item.xData), item.yData)
+                    if self.old_scalerhandler is not None:
+                        item.setData(self.old_scalerhandler.get_unscaled_time(item.xData), item.yData)
                     else:
                         item.setData(self.scalehandler.get_scaled_time(item.xData), item.yData)
 
@@ -1382,7 +1397,7 @@ class Shot(object):
 
         self._load_device(master_pseudoclock_device)
 
-        self._scalehandler = ScaleHandler(self._markers.keys(), self.stop_time)
+        # self._scalehandler = ScaleHandler(self._markers.keys(), self.stop_time)
 
     def _load_markers(self):
         with h5py.File(self.path, 'r') as file:
@@ -1493,11 +1508,11 @@ class Shot(object):
             self._load()
         return self._shutter_times
 
-    @property
-    def scalehandler(self):
-        if self._scalehandler is None:
-            self._load()
-        return self._scalehandler
+    # @property
+    # def scalehandler(self):
+        # if self._scalehandler is None:
+            # self._load()
+        # return self._scalehandler
 
 
 class TempShot(Shot):
