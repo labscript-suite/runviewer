@@ -148,10 +148,6 @@ class ScaleHandler():
         # get_scaled_time(5)   -> 3.5   ...
         self.org_stop_time = float(stop_time)
 
-
-
-
-
         if not all((x >= 0) and (x <= self.org_stop_time) for x in input_times):
             raise Exception('shot contains at least one marker before t=0 and/or after the stop time. Non-linear time currently does not support this.')
 
@@ -160,11 +156,11 @@ class ScaleHandler():
 
 
         # append values for linear scaling before t=0 and after stop time
-        unscaled_times = [-1e-9] + unscaled_times + [self.org_stop_time + 1e-9]
-        scaled_times = [-1e-9] + scaled_times + [self.org_stop_time + 1e-9]
+        unscaled_times = [min(unscaled_times)-1e-9] + unscaled_times + [max(unscaled_times) + 1e-9]
+        scaled_times = [min(scaled_times)-1e-9] + scaled_times + [max(scaled_times) + 1e-9]
 
-        self.get_scaled_time = interpolate.interp1d(unscaled_times, scaled_times, assume_sorted=False, bounds_error=False, fill_value='extrapolate')
-        self.get_unscaled_time = interpolate.interp1d(scaled_times, unscaled_times, assume_sorted=False, bounds_error=False, fill_value='extrapolate')
+        self.get_scaled_time = interpolate.interp1d(unscaled_times, scaled_times, assume_sorted=True, bounds_error=False, fill_value='extrapolate')
+        self.get_unscaled_time = interpolate.interp1d(scaled_times, unscaled_times, assume_sorted=True, bounds_error=False, fill_value='extrapolate')
 
         self.scaled_stop_time = self.get_scaled_time(self.org_stop_time)
 
@@ -382,7 +378,6 @@ class RunViewer(object):
 
         self.scale_time = False
         self.scalehandler = None
-        self.old_scalehandler = None
 
     def _update_markers(self, index):
         for line, plot in self.all_marker_items.items():
@@ -476,9 +471,8 @@ class RunViewer(object):
         markers_unscaled = sorted(list(self.all_markers.keys()))
         marker_index = self.ui.markers_comboBox.currentIndex()
         shot = self.ui.markers_comboBox.itemData(marker_index)
-        self.old_scalehandler = self.scalehandler
-        self.scalehandler = ScaleHandler(markers_unscaled, markers_unscaled, shot.stop_time)
-        self._update_non_linear_time()
+        scalehandler = ScaleHandler(markers_unscaled, markers_unscaled, shot.stop_time)
+        self._update_non_linear_time(new_scalehandler=scalehandler)
         self.on_x_axis_reset()
         self._resample = True
 
@@ -489,9 +483,8 @@ class RunViewer(object):
         markers_unscaled = sorted(list(self.all_markers.keys()))
         target_length = shot.stop_time / float(len(markers_unscaled) - 1)
         scaled_times = [target_length * i for i in range(len(markers_unscaled))]
-        self.old_scalehandler = self.scalehandler
-        self.scalehandler = ScaleHandler(markers_unscaled, scaled_times, shot.stop_time)
-        self._update_non_linear_time()
+        scalehandler = ScaleHandler(markers_unscaled, scaled_times, shot.stop_time)
+        self._update_non_linear_time(new_scalehandler=scalehandler)
         self.on_x_axis_reset()
         self._resample = True
 
@@ -527,22 +520,23 @@ class RunViewer(object):
                     x += delta_marker
                 new_scaled_times.append(x)
         new_scaled_times = sorted(new_scaled_times)
-        self.old_scalehandler = self.scalehandler
-        self.scalehandler = ScaleHandler(markers_unscaled,new_scaled_times, shot.stop_time)
-        self._update_non_linear_time()
+        scalehandler = ScaleHandler(markers_unscaled,new_scaled_times, shot.stop_time)
+        self._update_non_linear_time(new_scalehandler=scalehandler)
 
     def _marker_moved(self, line):
         self._resample = True
 
-    def _update_non_linear_time(self, changed_shot=False):
+    def _update_non_linear_time(self, changed_shot=False, new_scalehandler=None):
 
         marker_index = self.ui.markers_comboBox.currentIndex()
         shot = self.ui.markers_comboBox.itemData(marker_index)
-        if shot is None:
+        if new_scalehandler is None:
             # make a 1:1 scalehandler using the hidden_plot
             end_t = self._hidden_plot[1].getData()[0][-1]
-            self.old_scalehandler = self.scalehandler
-            self.scalehandler = ScaleHandler([0,end_t],[0,end_t],end_t)
+            new_scalehandler = ScaleHandler([0,end_t],[0,end_t],end_t)
+
+        old_scalehandler = self.scalehandler
+        self.scalehandler = new_scalehandler
 
         # combine markers and shutter lines
         markers = list(self.all_marker_items.keys())
@@ -557,10 +551,10 @@ class RunViewer(object):
         for marker in markers:
             pos = marker.pos()
 
-            if self.old_scalehandler is None:
+            if old_scalehandler is None:
                 unscaled_x = pos.x()
             else:
-                unscaled_x = self.old_scalehandler.get_unscaled_time(pos.x())
+                unscaled_x = old_scalehandler.get_unscaled_time(pos.x())
 
             if self.scale_time and self.scalehandler is not None:
                 new_x = self.scalehandler.get_scaled_time(unscaled_x)
@@ -585,9 +579,9 @@ class RunViewer(object):
         for t in sorted(list(new_marker_times.keys())):
             marker = new_marker_times[t]
             marker.blockSignals(True)
-            marker.setBounds([None ,None])
+            marker.setBounds([None, None])
             marker.setPos(t)
-            marker.setBounds([last_time+1e-9 if last_time is not None else 0.0 ,None])
+            marker.setBounds([last_time+1e-9 if last_time is not None else 0.0, None])
             marker.blockSignals(False)
             last_time = t
 
@@ -603,8 +597,8 @@ class RunViewer(object):
         for plot in self.plot_widgets.values():
             for item in plot.getPlotItem().items:
                 if isinstance(item, pg.PlotDataItem):
-                    if self.old_scalehandler is not None:
-                        unscaled_t = self.old_scalehandler.get_unscaled_time(item.xData)
+                    if old_scalehandler is not None:
+                        unscaled_t = old_scalehandler.get_unscaled_time(item.xData)
                     else:
                         unscaled_t = item.xData
 
