@@ -278,6 +278,7 @@ class RunViewer(object):
 
         self.all_markers = {}
         self.all_marker_items = {}
+        self.movable_marker_items = {}
         markers_plot = pg.PlotWidget(name='runviewer - markers')
         markers_plot.setMinimumHeight(120)
         markers_plot.setMaximumHeight(120)
@@ -314,6 +315,9 @@ class RunViewer(object):
         self.ui.linear_time.setIcon(QIcon(':/qtutils/fugue/clock-history'))
         self.ui.equal_space_time.setIcon(QIcon(':/qtutils/fugue/border-vertical-all'))
 
+        self.ui.linear_time.setEnabled(False)
+        self.ui.equal_space_time.setEnabled(False)
+        
         self.ui.actionOpen_Shot.setIcon(QIcon(':/qtutils/fugue/plus'))
         self.ui.actionQuit.setIcon(QIcon(':/qtutils/fugue/cross-button'))
         self.ui.actionLoad_channel_config.setIcon(QIcon(':/qtutils/fugue/folder-open'))
@@ -378,38 +382,64 @@ class RunViewer(object):
 
         self.scale_time = False
         self.scalehandler = None
+        self.old_scalehandler = None
 
     def _update_markers(self, index):
         for line, plot in self.all_marker_items.items():
+            # line.blockSignals(True)
             plot.removeItem(line)
         self.all_marker_items = {}
-
+        
+        for line, plot in self.movable_marker_items.items():
+            # line.blockSignals(True)
+            plot.removeItem(line)
+        self.movable_marker_items = {}
+        self.marker_times_unscaled = {}
+        
         marker_index = self.ui.markers_comboBox.currentIndex()
         shot = self.ui.markers_comboBox.itemData(marker_index)
-        self.all_markers = shot.markers if index > 0 else {}
+        
+        if index == 0:
+            self.ui.linear_time.setEnabled(False)
+            self.ui.equal_space_time.setEnabled(False)
+            self.all_markers = {}
+        else:
+            self.ui.linear_time.setEnabled(True)
+            self.ui.equal_space_time.setEnabled(True)
+            self.all_markers = shot.markers
 
         self._update_non_linear_time(changed_shot=True)
 
         times = sorted(list(self.all_markers.keys()))
+        last_time = 0
         for i, (t, m) in enumerate(sorted(self.all_markers.items())):
             if i < len(times)-1:
                 delta_t = times[i+1] - t
-            else:
-                delta_t = shot.stop_time - t
-
+            # Now always have a marker at stop time
+            # else:
+                # delta_t = shot.stop_time - t
+            
+            unscaled_t = t
             if self.scale_time:
                 t = self.scalehandler.get_scaled_time(t)
 
             color = m['color']
             color = QColor(color[0], color[1], color[2])
             label = m['label'].decode() if isinstance( m['label'], bytes) else str(m['label'])
+            if i == 0:
+                line = self._markers_plot[0].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=Qt.DashLine), label=label, labelOpts= {"color": color, "fill": QColor(255, 255, 255, 255), "rotateAxis":(1, 0), "anchors": [(0.5, 0),(0.5, 0)]}, movable=False )
+            else:
+                line = self._markers_plot[0].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=Qt.DashLine), label=label, labelOpts= {"color": color, "fill": QColor(255, 255, 255, 255), "rotateAxis":(1, 0), "anchors": [(0.5, 0),(0.5, 0)]}, movable=True )
+                line.setBounds([last_time+1e-9 if last_time !=0 else last_time ,None])
+                line.sigPositionChanged.connect(self._marker_moving)
+                line.sigPositionChangeFinished.connect(self._marker_moved)
+            # self.all_marker_items[line] = self._markers_plot[0]
+            self.movable_marker_items[line] = self._markers_plot[0]
+            self.marker_times_unscaled[line] = unscaled_t
 
-            line = self._markers_plot[0].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=Qt.DashLine), label=label, labelOpts= {"color": color, "fill": QColor(255, 255, 255, 255), "rotateAxis":(1, 0), "anchors": [(0.5, 0),(0.5, 0)]} )
-            self.all_marker_items[line] = self._markers_plot[0]
-
-            line = self._time_axis_plot[0].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=Qt.DashLine), label=format_time(delta_t), labelOpts= {"color": color, "fill": QColor(255, 255, 255, 255), "rotateAxis":(1, 0), "anchors": [(0.5, 0),(0.5, 0)]} )
+            line = self._time_axis_plot[0].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=Qt.DashLine), label=format_time(delta_t), labelOpts= {"color": color, "fill": QColor(255, 255, 255, 255), "rotateAxis":(1, 0), "anchors": [(0.5, 0),(0.5, 0)]}, movable=False )
             self.all_marker_items[line] = self._time_axis_plot[0]
-
+            last_time = t
         self.update_plots()
 
     def mouseMovedEvent(self, position, ui, name):
@@ -445,28 +475,74 @@ class RunViewer(object):
     
     def _reset_linear_time(self):
         self.scale_time = False
-        self.old_scalerhandler = self.scalehandler
-        self.scalehandler = None
+        self.old_scalehandler = self.scalehandler
+        markers_unscaled = sorted(list(self.all_markers.keys()))
+        marker_index = self.ui.markers_comboBox.currentIndex()
+        shot = self.ui.markers_comboBox.itemData(marker_index)
+        self.scalehandler = ScaleHandler(markers_unscaled,markers_unscaled, shot.stop_time)
         self._update_non_linear_time()
+        self.on_x_axis_reset()
         
     def _space_markers_evenly(self):
         self.scale_time = True
         marker_index = self.ui.markers_comboBox.currentIndex()
         shot = self.ui.markers_comboBox.itemData(marker_index)
         markers_unscaled = sorted(list(self.all_markers.keys()))
-        
         target_length = shot.stop_time / float(len(markers_unscaled)-1)
         scaled_times = [target_length*i for i in range(len(markers_unscaled))]
-        self.old_scalerhandler = self.scalehandler
+        self.old_scalehandler = self.scalehandler
         self.scalehandler = ScaleHandler(markers_unscaled,scaled_times, shot.stop_time)
         self._update_non_linear_time()
+        self.on_x_axis_reset()
     
-    def _update_non_linear_time(self, changed_shot=False):
+    def _marker_moving(self, line, moving = True):
+        self.scale_time = True
+        marker_index = self.ui.markers_comboBox.currentIndex()
+        shot = self.ui.markers_comboBox.itemData(marker_index)
+        self.old_scalehandler = self.scalehandler
+        markers_unscaled = sorted(list(self.all_markers.keys()))
+        
+        # What was the unscaled time of the marker that moved, and where is it now?
+        moved_marker_unscaled_t = self.marker_times_unscaled[line]
+        moved_marker_new_pos = line.pos().x()
+        
+        # Where was the marker just before it was moved? This is given by the current scalehandler
+        if self.old_scalehandler is not None:
+            moved_marker_last_pos = self.old_scalehandler.get_scaled_time(moved_marker_unscaled_t)
+        else:
+            moved_marker_last_pos = moved_marker_unscaled_t
+        
+        # How far has the marker moved?
+        delta_marker = moved_marker_new_pos - moved_marker_last_pos
+        
+        # Now we want to shift the other markers if the are at a higher position than this one
+        markers = list(self.marker_times_unscaled.keys())
+        new_scaled_times = []
+        for marker in markers:
+            if marker == line:
+                new_scaled_times.append(moved_marker_new_pos)
+            else:
+                x = marker.pos().x()
+                 
+                if x > moved_marker_last_pos:
+                    x += delta_marker
+                new_scaled_times.append(x)
+        new_scaled_times = sorted(new_scaled_times)
+        self.scalehandler = ScaleHandler(markers_unscaled,new_scaled_times, shot.stop_time)
+        self._update_non_linear_time(still_moving = moving)
+        
+    def _marker_moved(self, line):
+        self._marker_moving(line, moving = False)
+    
+    def _update_non_linear_time(self, changed_shot=False, still_moving = False):
         
         marker_index = self.ui.markers_comboBox.currentIndex()
         shot = self.ui.markers_comboBox.itemData(marker_index)
         if shot is None:
-            self.scalehandler = None
+            # make a 1:1 scalehandler using the hidden_plot
+            end_t = self._hidden_plot[1].getData()[0][-1]
+            
+            self.scalehandler = ScaleHandler([0,end_t],[0,end_t],end_t)
 
         # combine markers and shutter lines
         markers = list(self.all_marker_items.keys())
@@ -481,10 +557,10 @@ class RunViewer(object):
         for marker in markers:
             pos = marker.pos()
 
-            if self.old_scalerhandler is None:
+            if self.old_scalehandler is None:
                 unscaled_x = pos.x()
             else:
-                unscaled_x = self.old_scalerhandler.get_unscaled_time(pos.x())
+                unscaled_x = self.old_scalehandler.get_unscaled_time(pos.x())
 
             if self.scale_time and self.scalehandler is not None:
                 new_x = self.scalehandler.get_scaled_time(unscaled_x)
@@ -493,6 +569,34 @@ class RunViewer(object):
 
             pos.setX(new_x)
             marker.setPos(pos)
+        # Move the movable lines in the upper graph
+        mv_markers = list(self.movable_marker_items.keys())
+        new_marker_times = {}
+        for marker in mv_markers:
+            pos = marker.pos()
+
+            if self.old_scalehandler is None:
+                unscaled_x = pos.x()
+            else:
+                unscaled_x = self.old_scalehandler.get_unscaled_time(pos.x())
+
+            if self.scale_time and self.scalehandler is not None:
+                new_x = self.scalehandler.get_scaled_time(unscaled_x)
+            else:
+                new_x = unscaled_x
+            
+            new_marker_times[float(new_x)] = marker
+        last_time = None
+        for t in sorted(new_marker_times):
+            marker = new_marker_times[t]
+            marker.blockSignals(True)
+            if not still_moving:
+                marker.setBounds([last_time+1e-9 if last_time is not None else 0.0 ,None])
+            last_time = t
+            pos = marker.pos()
+            pos.setX(t)
+            marker.setPos(pos)
+            marker.blockSignals(False)
 
         if shot is not None and self.scale_time:
             self._time_axis_plot[0].getAxis("bottom").setTicks([[[0, 0], [shot.stop_time, shot.stop_time]]])
@@ -506,11 +610,25 @@ class RunViewer(object):
         for plot in self.plot_widgets.values():
             for item in plot.getPlotItem().items:
                 if isinstance(item, pg.PlotDataItem):
-                    if self.old_scalerhandler is not None:
-                        item.setData(self.old_scalerhandler.get_unscaled_time(item.xData), item.yData)
+                    current_xData = item.xData
+                    if self.old_scalehandler is not None and self.scalehandler is not None and self.scale_time:
+                        # convert time to original unscaled version with old scaling, then rescale with new
+                        unsc_t = self.old_scalehandler.get_unscaled_time(current_xData)
+                        plt_t = self.scalehandler.get_scaled_time(unsc_t)
+                    elif self.scalehandler is not None and self.scale_time:
+                        # No old scalehandler, so must be coming from unscaled time
+                        plt_t = self.scalehandler.get_scaled_time(current_xData)
+                    elif self.old_scalehandler is not None and not self.scale_time:
+                        # Converting back to unscaled time
+                        plt_t = self.old_scalehandler.get_unscaled_time(current_xData)
                     else:
-                        item.setData(self.scalehandler.get_scaled_time(item.xData), item.yData)
-
+                        # Don't know what's going on here, shouldn't ever get here, so let's just log something about it and keep the graph as is
+                        plt_t = current_xData
+                        logger.info('Plot time rescaling failed')
+                    item.setData(plt_t, item.yData)
+                    
+        
+        
         self._resample = True
 
     def _process_shots(self):
@@ -823,8 +941,12 @@ class RunViewer(object):
         largest_stop_time = 0
         stop_time_set = False
         for shot in ticked_shots.keys():
-            if shot.stop_time > largest_stop_time:
-                largest_stop_time = shot.stop_time
+            if self.scale_time:
+                st = self.scalehandler.get_scaled_time(shot.stop_time)
+            else:
+                st = shot.stop_time
+            if st > largest_stop_time:
+                largest_stop_time = st
                 stop_time_set = True
         if not stop_time_set:
             largest_stop_time = 1.0
@@ -1197,6 +1319,23 @@ class RunViewer(object):
         return False
 
     def on_x_axis_reset(self):
+        ticked_shots = self.get_selected_shots_and_colours()
+        largest_stop_time = 0
+        stop_time_set = False
+        for shot in ticked_shots.keys():
+            if self.scale_time:
+                st = self.scalehandler.get_scaled_time(shot.stop_time)
+            else:
+                st = shot.stop_time
+            if st > largest_stop_time:
+                largest_stop_time = st
+                stop_time_set = True
+        if not stop_time_set:
+            largest_stop_time = 1.0
+
+        # Update the range of the link plot
+        self._hidden_plot[1].setData([0, largest_stop_time], [0, 1e-9])
+        
         self._hidden_plot[0].enableAutoRange(axis=pg.ViewBox.XAxis)
 
     def on_y_axes_reset(self):
