@@ -403,7 +403,7 @@ class RunViewer(object):
             self.ui.equal_space_time.setEnabled(True)
             self.all_markers = shot.markers
 
-        self._update_non_linear_time(changed_shot=True)
+        # self._update_non_linear_time(changed_shot=True)
 
         times = sorted(list(self.all_markers.keys()))
         last_time = 0
@@ -532,6 +532,7 @@ class RunViewer(object):
         shot = self.ui.markers_comboBox.itemData(marker_index)
         if new_scalehandler is None:
             # make a 1:1 scalehandler using the hidden_plot
+            self.scale_time = False
             end_t = self._hidden_plot[1].getData()[0][-1]
             new_scalehandler = ScaleHandler([0,end_t],[0,end_t],end_t)
 
