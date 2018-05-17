@@ -1356,6 +1356,7 @@ class Shot(object):
             # Get Shutter Calibrations
             if 'calibrations' in file and 'Shutter' in file['calibrations']:
                 for name, open_delay, close_delay in numpy.array(file['calibrations']['Shutter']):
+                    name = name.decode('utf8') if isinstance(name, bytes) else str(name)
                     self._shutter_calibrations[name] = [open_delay, close_delay]
 
     def delete_cache(self):
@@ -1398,12 +1399,9 @@ class Shot(object):
         self._traces[name] = trace
 
         # add shutter times
-        try:
-            con = self.connection_table.find_by_name(name)
-            if con.device_class == "Shutter":
-                self.add_shutter_times([(name, con.properties['open_state'])])
-        except KeyError:
-            pass
+        con = self.connection_table.find_by_name(name)
+        if con.device_class == "Shutter" and 'open_state' in con.properties:
+            self.add_shutter_times([(name, con.properties['open_state'])])
 
 
     # Temporary solution to physical shutter times
@@ -1413,7 +1411,7 @@ class Shot(object):
             if len(x_values) > 0:
                 change_indices = numpy.where(y_values[:-1] != y_values[1:])[0]
                 change_indices += 1 # use the index of the value that is changed to
-                change_values = zip(x_values[change_indices], y_values[change_indices])
+                change_values = list(zip(x_values[change_indices], y_values[change_indices]))
                 change_values.insert(0, (x_values[0], y_values[0])) # insert first value
                 self._shutter_times[name] = {x_value + (self._shutter_calibrations[name][0] if y_value == open_state else self._shutter_calibrations[name][1]): 1 if y_value == open_state else 0 for x_value, y_value in change_values}
 
