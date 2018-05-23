@@ -138,7 +138,7 @@ def int_to_enum(enum_list, value):
 
 class ScaleHandler():
 
-    def __init__(self, input_times, stop_time):
+    def __init__(self, input_times, target_positions, stop_time):
         # input_times is a list (may be unsorted) of times which should be scaled evenly with target_length
         # an input list of [1,2,4,6] and target_length of 1.0 will result in:
         # get_scaled_time(1)   -> 1
@@ -148,25 +148,19 @@ class ScaleHandler():
         # get_scaled_time(5)   -> 3.5   ...
         self.org_stop_time = float(stop_time)
 
-        if 0 not in input_times:
-            input_times.append(0)
-
-        if self.org_stop_time not in input_times:
-            input_times.append(self.org_stop_time)
-
         if not all((x >= 0) and (x <= self.org_stop_time) for x in input_times):
             raise Exception('shot contains at least one marker before t=0 and/or after the stop time. Non-linear time currently does not support this.')
 
         unscaled_times = sorted(input_times)
-        target_length = self.org_stop_time / float(len(unscaled_times)-1)
-        scaled_times = [target_length*i for i in range(len(input_times))]
+        scaled_times = sorted(target_positions)
+
 
         # append values for linear scaling before t=0 and after stop time
-        unscaled_times = [-1e-9] + unscaled_times + [self.org_stop_time + 1e-9]
-        scaled_times = [-1e-9] + scaled_times + [self.org_stop_time + 1e-9]
+        unscaled_times = [min(unscaled_times)-1e-9] + unscaled_times + [max(unscaled_times) + 1e-9]
+        scaled_times = [min(scaled_times)-1e-9] + scaled_times + [max(scaled_times) + 1e-9]
 
-        self.get_scaled_time = interpolate.interp1d(unscaled_times, scaled_times, assume_sorted=False, bounds_error=False, fill_value='extrapolate')
-        self.get_unscaled_time = interpolate.interp1d(scaled_times, unscaled_times, assume_sorted=False, bounds_error=False, fill_value='extrapolate')
+        self.get_scaled_time = interpolate.interp1d(unscaled_times, scaled_times, assume_sorted=True, bounds_error=False, fill_value='extrapolate')
+        self.get_unscaled_time = interpolate.interp1d(scaled_times, unscaled_times, assume_sorted=True, bounds_error=False, fill_value='extrapolate')
 
         self.scaled_stop_time = self.get_scaled_time(self.org_stop_time)
 
@@ -280,6 +274,7 @@ class RunViewer(object):
 
         self.all_markers = {}
         self.all_marker_items = {}
+        self.movable_marker_items = {}
         markers_plot = pg.PlotWidget(name='runviewer - markers')
         markers_plot.setMinimumHeight(120)
         markers_plot.setMaximumHeight(120)
@@ -310,10 +305,14 @@ class RunViewer(object):
         self.ui.channel_move_up.setIcon(QIcon(':/qtutils/fugue/arrow-090'))
         self.ui.channel_move_down.setIcon(QIcon(':/qtutils/fugue/arrow-270'))
         self.ui.channel_move_to_bottom.setIcon(QIcon(':/qtutils/fugue/arrow-stop-270'))
-        self.ui.reset_x_axis.setIcon(QIcon(':/qtutils/fugue/clock-history'))
-        self.ui.reset_y_axis.setIcon(QIcon(':/qtutils/fugue/magnifier-history'))
+        self.ui.reset_x_axis.setIcon(QIcon(':/qtutils/fugue/layer-resize-replicate'))
+        self.ui.reset_y_axis.setIcon(QIcon(':/qtutils/fugue/layer-resize-replicate-vertical'))
         self.ui.toggle_tooltip.setIcon(QIcon(':/qtutils/fugue/ui-tooltip-balloon'))
-        self.ui.non_linear_time.setIcon(QIcon(':/qtutils/fugue/ui-ruler'))
+        self.ui.linear_time.setIcon(QIcon(':/qtutils/fugue/clock-history'))
+        self.ui.equal_space_time.setIcon(QIcon(':/qtutils/fugue/border-vertical-all'))
+
+        self.ui.linear_time.setEnabled(False)
+        self.ui.equal_space_time.setEnabled(False)
 
         self.ui.actionOpen_Shot.setIcon(QIcon(':/qtutils/fugue/plus'))
         self.ui.actionQuit.setIcon(QIcon(':/qtutils/fugue/cross-button'))
@@ -335,7 +334,9 @@ class RunViewer(object):
         self.ui.disable_selected_shots.clicked.connect(self._disable_selected_shots)
         self.ui.add_shot.clicked.connect(self.on_add_shot)
         self.ui.markers_comboBox.currentIndexChanged.connect(self._update_markers)
-        self.ui.non_linear_time.toggled.connect(self._toggle_non_linear_time)
+        # self.ui.non_linear_time.toggled.connect(self._toggle_non_linear_time)
+        self.ui.linear_time.clicked.connect(self._reset_linear_time)
+        self.ui.equal_space_time.clicked.connect(self._space_markers_evenly)
         self.ui.remove_shots.clicked.connect(self.on_remove_shots)
 
         self.ui.actionOpen_Shot.triggered.connect(self.on_add_shot)
@@ -380,35 +381,60 @@ class RunViewer(object):
 
     def _update_markers(self, index):
         for line, plot in self.all_marker_items.items():
+            # line.blockSignals(True)
             plot.removeItem(line)
         self.all_marker_items = {}
 
+        for line, plot in self.movable_marker_items.items():
+            # line.blockSignals(True)
+            plot.removeItem(line)
+        self.movable_marker_items = {}
+        self.marker_times_unscaled = {}
+
         marker_index = self.ui.markers_comboBox.currentIndex()
         shot = self.ui.markers_comboBox.itemData(marker_index)
-        self.all_markers = shot.markers if index > 0 else {}
 
-        self._update_non_linear_time(changed_shot=True)
+        if index == 0:
+            self.ui.linear_time.setEnabled(False)
+            self.ui.equal_space_time.setEnabled(False)
+            self.all_markers = {}
+        else:
+            self.ui.linear_time.setEnabled(True)
+            self.ui.equal_space_time.setEnabled(True)
+            self.all_markers = shot.markers
+
+        # self._update_non_linear_time(changed_shot=True)
 
         times = sorted(list(self.all_markers.keys()))
+        last_time = 0
         for i, (t, m) in enumerate(sorted(self.all_markers.items())):
             if i < len(times)-1:
                 delta_t = times[i+1] - t
-            else:
-                delta_t = shot.stop_time - t
+            # Now always have a marker at stop time
+            # else:
+                # delta_t = shot.stop_time - t
 
+            unscaled_t = t
             if self.scale_time:
                 t = self.scalehandler.get_scaled_time(t)
 
             color = m['color']
             color = QColor(color[0], color[1], color[2])
             label = m['label'].decode() if isinstance( m['label'], bytes) else str(m['label'])
+            if i == 0:
+                line = self._markers_plot[0].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=Qt.DashLine), label=label, labelOpts= {"color": color, "fill": QColor(255, 255, 255, 255), "rotateAxis":(1, 0), "anchors": [(0.5, 0),(0.5, 0)]}, movable=False )
+            else:
+                line = self._markers_plot[0].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=Qt.DashLine), label=label, labelOpts= {"color": color, "fill": QColor(255, 255, 255, 255), "rotateAxis":(1, 0), "anchors": [(0.5, 0),(0.5, 0)]}, movable=True )
+                line.setBounds([last_time+1e-9 if last_time !=0 else last_time ,None])
+                line.sigPositionChanged.connect(self._marker_moving)
+                line.sigPositionChangeFinished.connect(self._marker_moved)
+            # self.all_marker_items[line] = self._markers_plot[0]
+            self.movable_marker_items[line] = self._markers_plot[0]
+            self.marker_times_unscaled[line] = unscaled_t
 
-            line = self._markers_plot[0].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=Qt.DashLine), label=label, labelOpts= {"color": color, "fill": QColor(255, 255, 255, 255), "rotateAxis":(1, 0), "anchors": [(0.5, 0),(0.5, 0)]} )
-            self.all_marker_items[line] = self._markers_plot[0]
-
-            line = self._time_axis_plot[0].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=Qt.DashLine), label=format_time(delta_t), labelOpts= {"color": color, "fill": QColor(255, 255, 255, 255), "rotateAxis":(1, 0), "anchors": [(0.5, 0),(0.5, 0)]} )
+            line = self._time_axis_plot[0].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=Qt.DashLine), label=format_time(delta_t), labelOpts= {"color": color, "fill": QColor(255, 255, 255, 255), "rotateAxis":(1, 0), "anchors": [(0.5, 0),(0.5, 0)]}, movable=False )
             self.all_marker_items[line] = self._time_axis_plot[0]
-
+            last_time = t
         self.update_plots()
 
     def mouseMovedEvent(self, position, ui, name):
@@ -440,18 +466,78 @@ class RunViewer(object):
                     text = "Plot: {} \nTime: {:.9f}s\nValue: {}".format(name, unscaled_t, y_val)
                     QToolTip.showText(pos, text)
 
-    def _toggle_non_linear_time(self, state):
-        self.scale_time = state
-        self._update_non_linear_time()
-
-    def _update_non_linear_time(self, changed_shot=False):
-        old_scalerhandler = self.scalehandler
+    def _reset_linear_time(self):
+        self.scale_time = False
+        markers_unscaled = sorted(list(self.all_markers.keys()))
         marker_index = self.ui.markers_comboBox.currentIndex()
         shot = self.ui.markers_comboBox.itemData(marker_index)
-        if shot is not None and self.scale_time:
-            self.scalehandler = shot.scalehandler
+        scalehandler = ScaleHandler(markers_unscaled, markers_unscaled, shot.stop_time)
+        self._update_non_linear_time(new_scalehandler=scalehandler)
+        self.on_x_axis_reset()
+        self._resample = True
+
+    def _space_markers_evenly(self):
+        self.scale_time = True
+        marker_index = self.ui.markers_comboBox.currentIndex()
+        shot = self.ui.markers_comboBox.itemData(marker_index)
+        markers_unscaled = sorted(list(self.all_markers.keys()))
+        target_length = shot.stop_time / float(len(markers_unscaled) - 1)
+        scaled_times = [target_length * i for i in range(len(markers_unscaled))]
+        scalehandler = ScaleHandler(markers_unscaled, scaled_times, shot.stop_time)
+        self._update_non_linear_time(new_scalehandler=scalehandler)
+        self.on_x_axis_reset()
+        self._resample = True
+
+    def _marker_moving(self, line):
+        self.scale_time = True
+        marker_index = self.ui.markers_comboBox.currentIndex()
+        shot = self.ui.markers_comboBox.itemData(marker_index)
+        markers_unscaled = sorted(list(self.all_markers.keys()))
+
+        # What was the unscaled time of the marker that moved, and where is it now?
+        moved_marker_unscaled_t = self.marker_times_unscaled[line]
+        moved_marker_new_pos = line.pos().x()
+
+        # Where was the marker just before it was moved? This is given by the current scalehandler
+        if self.scalehandler is not None:
+            moved_marker_last_pos = self.scalehandler.get_scaled_time(moved_marker_unscaled_t)
         else:
-            self.scalehandler = None
+            moved_marker_last_pos = moved_marker_unscaled_t
+
+        # How far has the marker moved?
+        delta_marker = moved_marker_new_pos - moved_marker_last_pos
+
+        # Now we want to shift the other markers if the are at a higher position than this one
+        markers = list(self.marker_times_unscaled.keys())
+        new_scaled_times = []
+        for marker in markers:
+            if marker == line:
+                new_scaled_times.append(moved_marker_new_pos)
+            else:
+                x = marker.pos().x()
+
+                if x > moved_marker_last_pos:
+                    x += delta_marker
+                new_scaled_times.append(x)
+        new_scaled_times = sorted(new_scaled_times)
+        scalehandler = ScaleHandler(markers_unscaled,new_scaled_times, shot.stop_time)
+        self._update_non_linear_time(new_scalehandler=scalehandler)
+
+    def _marker_moved(self, line):
+        self._resample = True
+
+    def _update_non_linear_time(self, changed_shot=False, new_scalehandler=None):
+
+        marker_index = self.ui.markers_comboBox.currentIndex()
+        shot = self.ui.markers_comboBox.itemData(marker_index)
+        if new_scalehandler is None:
+            # make a 1:1 scalehandler using the hidden_plot
+            self.scale_time = False
+            end_t = self._hidden_plot[1].getData()[0][-1]
+            new_scalehandler = ScaleHandler([0,end_t],[0,end_t],end_t)
+
+        old_scalehandler = self.scalehandler
+        self.scalehandler = new_scalehandler
 
         # combine markers and shutter lines
         markers = list(self.all_marker_items.keys())
@@ -466,10 +552,10 @@ class RunViewer(object):
         for marker in markers:
             pos = marker.pos()
 
-            if old_scalerhandler is None:
+            if old_scalehandler is None:
                 unscaled_x = pos.x()
             else:
-                unscaled_x = old_scalerhandler.get_unscaled_time(pos.x())
+                unscaled_x = old_scalehandler.get_unscaled_time(pos.x())
 
             if self.scale_time and self.scalehandler is not None:
                 new_x = self.scalehandler.get_scaled_time(unscaled_x)
@@ -478,6 +564,27 @@ class RunViewer(object):
 
             pos.setX(new_x)
             marker.setPos(pos)
+
+        # Move the movable lines in the upper graph
+        mv_markers = list(self.movable_marker_items.keys())
+        new_marker_times = {}
+        for marker in mv_markers:
+            if self.scale_time and self.scalehandler is not None:
+                new_x = self.scalehandler.get_scaled_time(self.marker_times_unscaled[marker])
+            else:
+                new_x = self.marker_times_unscaled[marker]
+
+            new_marker_times[float(new_x)] = marker
+
+        last_time = None
+        for t in sorted(list(new_marker_times.keys())):
+            marker = new_marker_times[t]
+            marker.blockSignals(True)
+            marker.setBounds([None, None])
+            marker.setPos(t)
+            marker.setBounds([last_time+1e-9 if last_time is not None else 0.0, None])
+            marker.blockSignals(False)
+            last_time = t
 
         if shot is not None and self.scale_time:
             self._time_axis_plot[0].getAxis("bottom").setTicks([[[0, 0], [shot.stop_time, shot.stop_time]]])
@@ -491,8 +598,8 @@ class RunViewer(object):
         for plot in self.plot_widgets.values():
             for item in plot.getPlotItem().items:
                 if isinstance(item, pg.PlotDataItem):
-                    if old_scalerhandler is not None:
-                        unscaled_t = old_scalerhandler.get_unscaled_time(item.xData)
+                    if old_scalehandler is not None:
+                        unscaled_t = old_scalehandler.get_unscaled_time(item.xData)
                     else:
                         unscaled_t = item.xData
 
@@ -500,8 +607,6 @@ class RunViewer(object):
                         item.setData(self.scalehandler.get_scaled_time(unscaled_t), item.yData)
                     else:
                         item.setData(unscaled_t, item.yData)
-
-        self._resample = True
 
     def _process_shots(self):
         while True:
@@ -813,8 +918,12 @@ class RunViewer(object):
         largest_stop_time = 0
         stop_time_set = False
         for shot in ticked_shots.keys():
-            if shot.stop_time > largest_stop_time:
-                largest_stop_time = shot.stop_time
+            if self.scale_time:
+                st = self.scalehandler.get_scaled_time(shot.stop_time)
+            else:
+                st = shot.stop_time
+            if st > largest_stop_time:
+                largest_stop_time = st
                 stop_time_set = True
         if not stop_time_set:
             largest_stop_time = 1.0
@@ -1187,6 +1296,23 @@ class RunViewer(object):
         return False
 
     def on_x_axis_reset(self):
+        ticked_shots = self.get_selected_shots_and_colours()
+        largest_stop_time = 0
+        stop_time_set = False
+        for shot in ticked_shots.keys():
+            if self.scale_time:
+                st = self.scalehandler.get_scaled_time(shot.stop_time)
+            else:
+                st = shot.stop_time
+            if st > largest_stop_time:
+                largest_stop_time = st
+                stop_time_set = True
+        if not stop_time_set:
+            largest_stop_time = 1.0
+
+        # Update the range of the link plot
+        self._hidden_plot[1].setData([0, largest_stop_time], [0, 1e-9])
+
         self._hidden_plot[0].enableAutoRange(axis=pg.ViewBox.XAxis)
 
     def on_y_axes_reset(self):
@@ -1379,7 +1505,7 @@ class Shot(object):
 
         self._load_device(master_pseudoclock_device)
 
-        self._scalehandler = ScaleHandler(self._markers.keys(), self.stop_time)
+        # self._scalehandler = ScaleHandler(self._markers.keys(), self.stop_time)
 
     def _load_markers(self):
         with h5py.File(self.path, 'r') as file:
@@ -1392,6 +1518,10 @@ class Shot(object):
                     color = list(map(int, props[0].split(":")[1].strip(" ()").split(",")))
                     label = props[1].split(":")[1]
                     self._markers[float(time)] = {'color': color, 'label': label}
+            if 0 not in self._markers:
+                self._markers[0] = {'color': [0,0,0], 'label': 'Start'}
+            if self.stop_time not in self._markers:
+                self._markers[self.stop_time] = {'color': [0,0,0], 'label' : 'End'}
 
     def add_trace(self, name, trace, parent_device_name, connection):
         name = str(name)
@@ -1487,11 +1617,11 @@ class Shot(object):
             self._load()
         return self._shutter_times
 
-    @property
-    def scalehandler(self):
-        if self._scalehandler is None:
-            self._load()
-        return self._scalehandler
+    # @property
+    # def scalehandler(self):
+        # if self._scalehandler is None:
+            # self._load()
+        # return self._scalehandler
 
 
 class TempShot(Shot):
