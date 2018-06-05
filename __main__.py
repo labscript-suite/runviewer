@@ -451,15 +451,16 @@ class RunViewer(object):
             coord_pos = ui.plotItem.vb.mapSceneToView(position)
 
             if len(self.get_selected_shots_and_colours()) > 0:
+                scaled_t = float(coord_pos.x())
                 if self.scale_time and self.scalehandler is not None:
-                    unscaled_t = float(self.scalehandler.get_unscaled_time(coord_pos.x()))
+                    unscaled_t = float(self.scalehandler.get_unscaled_time(scaled_t))
                 else:
-                    unscaled_t = float(coord_pos.x())
+                    unscaled_t = scaled_t
                 if unscaled_t is not None:
                     pos = QPoint(glob_pos.x(), glob_pos.y())
                     plot_data = ui.plotItem.listDataItems()[0].getData()
-                    if plot_data[0] is not None and unscaled_t is not None:
-                        nearest_index = numpy.abs(plot_data[0] - unscaled_t).argmin() - 1
+                    if plot_data[0] is not None and scaled_t is not None:
+                        nearest_index = numpy.abs(plot_data[0] - scaled_t).argmin() - 1
                         y_val = "{:.2f}".format(plot_data[1][nearest_index])
                     else:
                         y_val = '-'
