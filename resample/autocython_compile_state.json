@@ -1,42 +1,47 @@
 {
     "resample.cp36-win32.pyd": {
         "pyx": "2ce9098cc8a417339614b97bdae1a54f333308bba5d680b1237ea835ecc819e0",
-        "so": "ef5383c1b4968230799085714313a518a9e603dbd0448372a4bddea7f423112b",
-        "setup.py": "2717ccaf1ef62b0dac38b67613bfc703b9f313d76c8ac35dee1a8ea2f58940b7"
+        "setup.py": "2717ccaf1ef62b0dac38b67613bfc703b9f313d76c8ac35dee1a8ea2f58940b7",
+        "so": "ef5383c1b4968230799085714313a518a9e603dbd0448372a4bddea7f423112b"
     },
     "resample.cp36-win_amd64.pyd": {
         "pyx": "2ce9098cc8a417339614b97bdae1a54f333308bba5d680b1237ea835ecc819e0",
-        "so": "b1f0585bd9ed8eb4285ec2b8516b75eb997684a3690f0f25026d3620878515cb",
-        "setup.py": "2717ccaf1ef62b0dac38b67613bfc703b9f313d76c8ac35dee1a8ea2f58940b7"
+        "setup.py": "2717ccaf1ef62b0dac38b67613bfc703b9f313d76c8ac35dee1a8ea2f58940b7",
+        "so": "b1f0585bd9ed8eb4285ec2b8516b75eb997684a3690f0f25026d3620878515cb"
     },
     "resample.cpython-36m-darwin.so": {
         "pyx": "2ce9098cc8a417339614b97bdae1a54f333308bba5d680b1237ea835ecc819e0",
-        "so": "ea100d1214a42dfd07146c2e74098845a6d4adb56b2cf2580a4e0b03857cce8b",
-        "setup.py": "2717ccaf1ef62b0dac38b67613bfc703b9f313d76c8ac35dee1a8ea2f58940b7"
+        "setup.py": "2717ccaf1ef62b0dac38b67613bfc703b9f313d76c8ac35dee1a8ea2f58940b7",
+        "so": "ea100d1214a42dfd07146c2e74098845a6d4adb56b2cf2580a4e0b03857cce8b"
     },
     "resample.cpython-36m-x86_64-linux-gnu.so": {
         "pyx": "2ce9098cc8a417339614b97bdae1a54f333308bba5d680b1237ea835ecc819e0",
-        "so": "32f05264c238ad88e75a6f59e39685ce0ae9ddcde3f4b11b28e7d8df2e07ecdc",
-        "setup.py": "2717ccaf1ef62b0dac38b67613bfc703b9f313d76c8ac35dee1a8ea2f58940b7"
+        "setup.py": "2717ccaf1ef62b0dac38b67613bfc703b9f313d76c8ac35dee1a8ea2f58940b7",
+        "so": "32f05264c238ad88e75a6f59e39685ce0ae9ddcde3f4b11b28e7d8df2e07ecdc"
+    },
+    "resample.cpython-37m-x86_64-linux-gnu.so": {
+        "pyx": "2ce9098cc8a417339614b97bdae1a54f333308bba5d680b1237ea835ecc819e0",
+        "setup.py": "2717ccaf1ef62b0dac38b67613bfc703b9f313d76c8ac35dee1a8ea2f58940b7",
+        "so": "254103913345527f214fc9d0db97f4c3b75de24737ae6af446c82c4c1cea8688"
     },
     "resample_py27_darwin_64bit.so": {
         "pyx": "2ce9098cc8a417339614b97bdae1a54f333308bba5d680b1237ea835ecc819e0",
-        "so": "5238be09a0f6ab29c04f4d398feee4ac8cf5de8ead1ab1d2a0f6d7d2f58a2c3e",
-        "setup.py": "2717ccaf1ef62b0dac38b67613bfc703b9f313d76c8ac35dee1a8ea2f58940b7"
+        "setup.py": "2717ccaf1ef62b0dac38b67613bfc703b9f313d76c8ac35dee1a8ea2f58940b7",
+        "so": "5238be09a0f6ab29c04f4d398feee4ac8cf5de8ead1ab1d2a0f6d7d2f58a2c3e"
     },
     "resample_py27_linux2_64bit.so": {
         "pyx": "2ce9098cc8a417339614b97bdae1a54f333308bba5d680b1237ea835ecc819e0",
-        "so": "81398ba177a256c98b3a38eed628273b3efdefe87e15df430d30ca58316d438f",
-        "setup.py": "2717ccaf1ef62b0dac38b67613bfc703b9f313d76c8ac35dee1a8ea2f58940b7"
+        "setup.py": "2717ccaf1ef62b0dac38b67613bfc703b9f313d76c8ac35dee1a8ea2f58940b7",
+        "so": "81398ba177a256c98b3a38eed628273b3efdefe87e15df430d30ca58316d438f"
     },
     "resample_py27_win32_32bit.pyd": {
         "pyx": "2ce9098cc8a417339614b97bdae1a54f333308bba5d680b1237ea835ecc819e0",
-        "so": "7d2322dbf682c9819e56d989e160d1967d9a2470ad260cd47d9ea245cd51394c",
-        "setup.py": "2717ccaf1ef62b0dac38b67613bfc703b9f313d76c8ac35dee1a8ea2f58940b7"
+        "setup.py": "2717ccaf1ef62b0dac38b67613bfc703b9f313d76c8ac35dee1a8ea2f58940b7",
+        "so": "7d2322dbf682c9819e56d989e160d1967d9a2470ad260cd47d9ea245cd51394c"
     },
     "resample_py27_win32_64bit.pyd": {
         "pyx": "2ce9098cc8a417339614b97bdae1a54f333308bba5d680b1237ea835ecc819e0",
-        "so": "d5705368d4fae13b5f4ad50e175029c81f71cbe8de4a94a2c07c3300f2688f87",
-        "setup.py": "2717ccaf1ef62b0dac38b67613bfc703b9f313d76c8ac35dee1a8ea2f58940b7"
+        "setup.py": "2717ccaf1ef62b0dac38b67613bfc703b9f313d76c8ac35dee1a8ea2f58940b7",
+        "so": "d5705368d4fae13b5f4ad50e175029c81f71cbe8de4a94a2c07c3300f2688f87"
     }
 }
