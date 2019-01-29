@@ -27,6 +27,7 @@ from labscript_utils.splash import Splash
 splash = Splash(os.path.join(os.path.dirname(__file__), 'runviewer.ico'))
 splash.show()
 
+splash.update_text('importing standard library modules')
 import sys
 import time
 import threading
@@ -49,15 +50,19 @@ signal.signal(signal.SIGINT, signal.SIG_DFL)
 runviewer_dir = os.path.dirname(os.path.realpath(__file__))
 os.chdir(runviewer_dir)
 
+splash.update_text('importing Qt')
 check_version('qtutils', '2.0.0', '3.0.0')
+splash.update_text('importing zprocess')
 check_version('zprocess', '1.1.2', '3')
 
+splash.update_text('importing labscript suite modules')
 from labscript_utils.setup_logging import setup_logging
 logger = setup_logging('runviewer')
 labscript_utils.excepthook.set_logger(logger)
 
 from zprocess import zmq_get, ZMQServer
 import zprocess.locking
+splash.update_text('importing h5_lock and h5py')
 import labscript_utils.h5_lock
 import h5py
 zprocess.locking.set_client_process_name('runviewer')
@@ -65,6 +70,7 @@ zprocess.locking.set_client_process_name('runviewer')
 # This must be bumped until after the h5_lock import
 # This is because the check imports pyqtgraph, which imports h5py
 # h5py must be imported after h5_lock, thus we do the check here
+splash.update_text('importing pyqtgraph')
 check_version('pyqtgraph', '0.9.10', '1')
 
 from qtutils.qt.QtCore import *
@@ -72,7 +78,9 @@ from qtutils.qt.QtGui import *
 from qtutils.qt.QtWidgets import *
 from qtutils.qt.QtCore import pyqtSignal as Signal
 
+splash.update_text('importing numpy')
 import numpy
+splash.update_text('importing scipy')
 from scipy import interpolate
 
 # must be imported after PySide/PyQt4
@@ -82,6 +90,7 @@ pg.setConfigOption('foreground', 'k')
 
 from qtutils import *
 import qtutils.icons
+splash.update_text('importing labscript suite modules')
 from labscript_utils.connections import ConnectionTable
 import labscript_devices
 
@@ -234,6 +243,7 @@ class RunviewerMainWindow(QMainWindow):
 
 class RunViewer(object):
     def __init__(self, exp_config):
+        splash.update_text('loading graphical interface')
         self.ui = UiLoader().load(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'main.ui'), RunviewerMainWindow())
 
         # setup shot treeview model
@@ -352,6 +362,7 @@ class RunViewer(object):
         if os.name == 'nt':
             self.ui.newWindow.connect(set_win_appusermodel)
 
+        splash.update_text('done')
         self.ui.show()
 
         # internal variables
