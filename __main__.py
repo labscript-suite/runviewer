@@ -359,6 +359,10 @@ class RunViewer(object):
         self.ui.actionLoad_channel_config.triggered.connect(self.on_load_channel_config)
         self.ui.actionSave_channel_config.triggered.connect(self.on_save_channel_config)
 
+        # Keyboard shortcuts:
+        QShortcut('Del', self.ui.shot_treeview, lambda: self.on_remove_shots(confirm=True))
+        QShortcut('Shift+Del', self.ui.shot_treeview, lambda: self.on_remove_shots(confirm=False))
+
         if os.name == 'nt':
             self.ui.newWindow.connect(set_win_appusermodel)
 
@@ -720,7 +724,7 @@ class RunViewer(object):
             message.setStandardButtons(QMessageBox.Ok)
             message.exec_()
 
-    def on_remove_shots(self):
+    def on_remove_shots(self, confirm=True):
         # Get the selection model from the treeview
         selection_model = self.ui.shot_treeview.selectionModel()
         # Create a list of select row indices
@@ -728,10 +732,11 @@ class RunViewer(object):
         # sort in descending order to prevent index changes of rows to be deleted
         selected_row_list.sort(reverse=True)
 
-        reply = QMessageBox.question(self.ui, 'Runviewer', 'Remove {} shots?'.format(len(selected_row_list)),
-                                       QMessageBox.Yes | QMessageBox.No)
-        if reply == QMessageBox.No:
-            return
+        if confirm:
+            reply = QMessageBox.question(self.ui, 'Runviewer', 'Remove {} shots?'.format(len(selected_row_list)),
+                                           QMessageBox.Yes | QMessageBox.No)
+            if reply == QMessageBox.No:
+                return
 
         for row in selected_row_list:
             item = self.shot_model.item(row, SHOT_MODEL__CHECKBOX_INDEX)
