@@ -438,7 +438,11 @@ class RunViewer(object):
                 t = self.scalehandler.get_scaled_time(t)
 
             color = m['color']
-            color = QColor(color[0], color[1], color[2])
+            r, g, b = color
+            if (r, g, b) == (-1, -1, -1):
+                # Default colour, black:
+                r, g, b = (0, 0, 0)
+            color = QColor(r, g, b)
             label = m['label'].decode() if isinstance( m['label'], bytes) else str(m['label'])
             if i == 0:
                 line = self._markers_plot[0].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=Qt.DashLine), label=label, labelOpts= {"color": color, "fill": QColor(255, 255, 255, 255), "rotateAxis":(1, 0), "anchors": [(0.5, 0),(0.5, 0)]}, movable=False )
