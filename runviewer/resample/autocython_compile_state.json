@@ -39,6 +39,11 @@
         "setup.py": "2717ccaf1ef62b0dac38b67613bfc703b9f313d76c8ac35dee1a8ea2f58940b7",
         "so": "254103913345527f214fc9d0db97f4c3b75de24737ae6af446c82c4c1cea8688"
     },
+    "resample.cpython-38-x86_64-linux-gnu.so": {
+        "pyx": "2ce9098cc8a417339614b97bdae1a54f333308bba5d680b1237ea835ecc819e0",
+        "setup.py": "2717ccaf1ef62b0dac38b67613bfc703b9f313d76c8ac35dee1a8ea2f58940b7",
+        "so": "7738de3042f5db11972ba7bc48034b895ad58c4080a6271349359a7eb6c5d0cb"
+    },
     "resample_py27_darwin_64bit.so": {
         "pyx": "2ce9098cc8a417339614b97bdae1a54f333308bba5d680b1237ea835ecc819e0",
         "setup.py": "2717ccaf1ef62b0dac38b67613bfc703b9f313d76c8ac35dee1a8ea2f58940b7",
