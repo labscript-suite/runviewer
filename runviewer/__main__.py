@@ -21,10 +21,11 @@ try:
 except ImportError:
     raise ImportError('Require labscript_utils > 2.1.0')
 
-check_version('labscript_utils', '2.10.0', '3')
+check_version('labscript_utils', '2.15.0', '3')
 # Splash screen
+from runviewer import runviewer_dir
 from labscript_utils.splash import Splash
-splash = Splash(os.path.join(os.path.dirname(__file__), 'runviewer.svg'))
+splash = Splash(os.path.join(runviewer_dir, 'runviewer.svg'))
 splash.show()
 
 splash.update_text('importing standard library modules')
@@ -46,9 +47,6 @@ import signal
 # Quit on ctrl-c
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-# Set working directory to runviewer folder, resolving symlinks
-runviewer_dir = os.path.dirname(os.path.realpath(__file__))
-os.chdir(runviewer_dir)
 
 splash.update_text('importing Qt')
 check_version('qtutils', '2.0.0', '3.0.0')
@@ -243,7 +241,7 @@ class RunviewerMainWindow(QMainWindow):
 class RunViewer(object):
     def __init__(self, exp_config):
         splash.update_text('loading graphical interface')
-        self.ui = UiLoader().load(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'main.ui'), RunviewerMainWindow())
+        self.ui = UiLoader().load(os.path.join(runviewer_dir, 'main.ui'), RunviewerMainWindow())
 
         # setup shot treeview model
         self.shot_model = QStandardItemModel()

@@ -10,5 +10,7 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
+import os
 
 __version__ = '2.3.0'
+runviewer_dir = os.path.dirname(os.path.realpath(__file__))
