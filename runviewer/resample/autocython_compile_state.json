@@ -19,6 +19,16 @@
         "setup.py": "2717ccaf1ef62b0dac38b67613bfc703b9f313d76c8ac35dee1a8ea2f58940b7",
         "so": "dcbb2da1b40ec83a535363fd4a3086d613aa7f3b757a4cda52452f908b6c7c84"
     },
+    "resample.cp38-win32.pyd": {
+        "pyx": "2ce9098cc8a417339614b97bdae1a54f333308bba5d680b1237ea835ecc819e0",
+        "setup.py": "2717ccaf1ef62b0dac38b67613bfc703b9f313d76c8ac35dee1a8ea2f58940b7",
+        "so": "4b230b87545cf48e36f954056f9bd1b1bb2a34f2e0ab90144a6b3e5941ef15ef"
+    },
+    "resample.cp38-win_amd64.pyd": {
+        "pyx": "2ce9098cc8a417339614b97bdae1a54f333308bba5d680b1237ea835ecc819e0",
+        "setup.py": "2717ccaf1ef62b0dac38b67613bfc703b9f313d76c8ac35dee1a8ea2f58940b7",
+        "so": "cba9ad71ed3e2a07fa4959f2767bd23174a2b79f5a5753bd73738d8440550e06"
+    },
     "resample.cpython-36m-darwin.so": {
         "pyx": "2ce9098cc8a417339614b97bdae1a54f333308bba5d680b1237ea835ecc819e0",
         "setup.py": "2717ccaf1ef62b0dac38b67613bfc703b9f313d76c8ac35dee1a8ea2f58940b7",
