@@ -1,3 +1,9 @@
 syntax: glob
-*pyc
+*.pyc
 runviewer.log
+.eggs
+build
+conda_build
+dist
+conda_dist
+*.egg-info
