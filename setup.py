@@ -88,7 +88,8 @@ setup(
         'conda_dist': {
             'pythons': (__file__, ['2.7', '3.6', '3.7']),
             'platforms': (__file__, 'all'),
-            'force_conversion': (__file__, 1),
+            'force_conversion': (__file__, True),
+            'install_requires': (__file__, INSTALL_REQUIRES_CONDA)
         },
     },
 )
