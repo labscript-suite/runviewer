@@ -16,26 +16,22 @@
 #
 #     twine upload dist/*
 #
-# Build conda packages for all platforms (in a conda environment with conda-build and
-# conda-verify installed) with:
+# Build conda packages for all platforms (in a conda environment with setuptools_conda
+# installed) with:
 #
-#     python setup.py conda_dist
+#     python setup.py dist_conda
 #
 # Upoad to your own account (for testing) on anaconda cloud (in a conda environment with
 # anaconda-client installed) with:
 #
-#     anaconda upload --skip-existing
-#          conda_dist/linux-64/* dist_conda/osx-64/*
-#          conda_dist/win-32/* conda_dist/win-64/*
+#     anaconda upload --skip-existing conda_packages/*/*
 #
-# (This command can be shorter on Unix, but Windows won't recursively expand wildcards)
+# (Trickier on Windows, as it won't expand the wildcards)
 #
 # Upoad to the labscript-suite organisation's channel on anaconda cloud (in a
 # conda environment with anaconda-client installed) with:
 #
-#     anaconda -c labscript-suite upload --skip-existing
-#          conda_dist/linux-64/* conda_dist/osx-64/*
-#          conda_dist/win-32/* conda_dist/win-64/*
+#     anaconda -c labscript-suite upload --skip-existing conda_packages/*/*
 #
 # If you need to rebuild the same version of the package for conda due to a packaging
 # issue, you must increment CONDA_BUILD_NUMBER in order to create a unique version on
@@ -43,13 +39,13 @@
 # CONDA_BUILD_NUMBER should be reset to zero.
 
 import os
-import runviewer
 from setuptools import setup
+from runpy import run_path
 
 try:
-    from setuptools_conda import conda_dist
+    from setuptools_conda import dist_conda
 except ImportError:
-    conda_dist = None
+    dist_conda = None
 
 SETUP_REQUIRES = ['setuptools', 'setuptools_scm']
 
@@ -59,17 +55,15 @@ INSTALL_REQUIRES_CONDA = [
     "numpy >=1.15",
     "scipy",
     "h5py",
+    "qtutils >= 2.0.0",
+    "zprocess",
 ]
 
-INSTALL_REQUIRES = INSTALL_REQUIRES_CONDA + [
-    "autocython",
-    "zprocess",
-    "qtutils >= 2.0.0",
-]
+INSTALL_REQUIRES = INSTALL_REQUIRES_CONDA + ["autocython"]
 
 setup(
     name='runviewer',
-    version=runviewer.__version__,
+    version=run_path(os.path.join('runviewer', '__version__.py'))['__version__'],
     description="A program to view shots compiled by labscript",
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
@@ -83,11 +77,11 @@ setup(
     include_package_data=True,
     python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*, !=3.5",
     install_requires=INSTALL_REQUIRES if 'CONDA_BUILD' not in os.environ else [],
-    cmdclass={'conda_dist': conda_dist} if conda_dist is not None else {},
+    cmdclass={'dist_conda': dist_conda} if dist_conda is not None else {},
     command_options={
-        'conda_dist': {
-            'pythons': (__file__, ['2.7', '3.6', '3.7']),
-            'platforms': (__file__, 'all'),
+        'dist_conda': {
+            'pythons': (__file__, ['3.6', '3.7', '3.8']),
+            'platforms': (__file__, ['linux-64', 'win-32', 'win-64', 'osx-64']),
             'force_conversion': (__file__, True),
             'install_requires': (__file__, INSTALL_REQUIRES_CONDA)
         },

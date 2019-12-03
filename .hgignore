@@ -4,6 +4,6 @@ runviewer.log
 .eggs
 build
 conda_build
+conda_packages
 dist
-conda_dist
 *.egg-info

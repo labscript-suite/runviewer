@@ -12,5 +12,5 @@
 #####################################################################
 import os
 
-__version__ = '2.3.0'
+from .__version__ import __version__
 runviewer_dir = os.path.dirname(os.path.realpath(__file__))
