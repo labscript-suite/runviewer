@@ -50,16 +50,16 @@ except ImportError:
 SETUP_REQUIRES = ['setuptools', 'setuptools_scm']
 
 # TODO: add labscript suite deps once they are on PyPI/anaconda cloud
-INSTALL_REQUIRES_CONDA = [
+INSTALL_REQUIRES = [
     "pyqtgraph >=0.9.10",
     "numpy >=1.15",
     "scipy",
     "h5py",
-    "qtutils >= 2.0.0",
+    "qtutils >=2.0.0",
     "zprocess",
+    # Not available on conda, but we don't build conda packages for Python 2:
+    "autocython; sys_version == '2.7'" 
 ]
-
-INSTALL_REQUIRES = INSTALL_REQUIRES_CONDA + ["autocython"]
 
 setup(
     name='runviewer',
@@ -83,7 +83,6 @@ setup(
             'pythons': (__file__, ['3.6', '3.7', '3.8']),
             'platforms': (__file__, ['linux-64', 'win-32', 'win-64', 'osx-64']),
             'force_conversion': (__file__, True),
-            'install_requires': (__file__, INSTALL_REQUIRES_CONDA)
         },
     },
 )
