@@ -1,14 +1,13 @@
-#####################################################################
-#                                                                   #
-# /__init__.py                                                      #
-#                                                                   #
-# Copyright 2013, Monash University                                 #
-#                                                                   #
-# This file is part of the program runviewer, in the labscript     #
-# suite (see http://labscriptsuite.org), and is licensed under the  #
-# Simplified BSD License. See the license.txt file in the root of   #
-# the project for the full license.                                 #
-#                                                                   #
-#####################################################################
-
-__version__ = '2.3.0'
+# This is a shim to the real package one subfolder below. It exists for backward
+# compatibility with installations from before the restructuring of this project's
+# repository into the usual structure for Python packages. This allows these
+# installations to continue functioning and being updatable as we switch the
+# repositories to the new repo layout one-at-a-time.
+import sys
+import os
+try:
+    sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+    del sys.modules[__name__]
+    __import__(__name__)
+finally:
+    del sys.path[0]
