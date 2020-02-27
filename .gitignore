@@ -1,6 +1,4 @@
-syntax: glob
 *.pyc
-runviewer.log
 .eggs
 build
 conda_build

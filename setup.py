@@ -47,18 +47,15 @@ try:
 except ImportError:
     dist_conda = None
 
-SETUP_REQUIRES = ['setuptools', 'setuptools_scm']
-
-# TODO: add labscript suite deps once they are on PyPI/anaconda cloud
 INSTALL_REQUIRES = [
+    "labscript_devices",
+    "labscript_utils >=2.15",
     "pyqtgraph >=0.9.10",
+    "qtutils >=2.0.0",
+    "zprocess",
     "numpy >=1.15",
     "scipy",
     "h5py",
-    "qtutils >=2.0.0",
-    "zprocess",
-    # Not available on conda, but we don't build conda packages for Python 2:
-    "autocython; sys_version == '2.7'" 
 ]
 
 setup(
@@ -71,11 +68,11 @@ setup(
     author_email='labscriptsuite@googlegroups.com ',
     url='http://labscriptsuite.org',
     license="BSD",
-    packages=["runviewer", "runviewer.resample"],
+    packages=["runviewer"],
     zip_safe=False,
-    setup_requires=SETUP_REQUIRES,
+    setup_requires=['setuptools', 'setuptools_scm'],
     include_package_data=True,
-    python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*, !=3.5",
+    python_requires=">=3.6",
     install_requires=INSTALL_REQUIRES if 'CONDA_BUILD' not in os.environ else [],
     cmdclass={'dist_conda': dist_conda} if dist_conda is not None else {},
     command_options={
