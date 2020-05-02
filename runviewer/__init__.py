@@ -12,5 +12,10 @@
 #####################################################################
 import os
 
-from .__version__ import __version__
+from labscript_utils.versions import get_version, NoVersionInfo
+from pathlib import Path
+__version__ = get_version(__name__, import_path=Path(__file__).parent.parent)
+if __version__ is NoVersionInfo:
+    __version__ = None
+    
 runviewer_dir = os.path.dirname(os.path.realpath(__file__))
