@@ -55,6 +55,7 @@ INSTALL_REQUIRES = [
     "numpy >=1.15",
     "scipy",
     "h5py",
+    "desktop-app"
 ]
 
 setup(
@@ -68,6 +69,10 @@ setup(
     url='http://labscriptsuite.org',
     license="BSD",
     packages=["runviewer"],
+    entry_points={
+        'console_scripts': ['runviewer = desktop_app:entry_point'],
+        'gui_scripts': ["runviewer-gui = desktop_app:entry_point"],
+    },
     zip_safe=False,
     setup_requires=['setuptools', 'setuptools_scm'],
     include_package_data=True,
