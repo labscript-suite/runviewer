@@ -22,6 +22,12 @@ except ImportError:
     raise ImportError('Require labscript_utils > 2.1.0')
 
 check_version('labscript_utils', '2.15.0', '3')
+
+# Associate app windows with OS menu shortcuts:
+import desktop_app
+desktop_app.set_process_appid('runviewer')
+
+
 # Splash screen
 from runviewer import runviewer_dir
 from labscript_utils.splash import Splash
@@ -33,7 +39,6 @@ import sys
 import time
 import threading
 import logging
-import ctypes
 import socket
 if PY2:
     str = unicode
@@ -69,7 +74,6 @@ check_version('pyqtgraph', '0.9.10', '1')
 from qtutils.qt.QtCore import *
 from qtutils.qt.QtGui import *
 from qtutils.qt.QtWidgets import *
-from qtutils.qt.QtCore import pyqtSignal as Signal
 
 splash.update_text('importing numpy')
 import numpy
@@ -94,17 +98,6 @@ process_tree = ProcessTree.instance()
 process_tree.zlock_client.set_process_name('runviewer')
 
 from runviewer.resample import resample as _resample
-
-
-def set_win_appusermodel(window_id):
-    from labscript_utils.winshell import set_appusermodel, appids, app_descriptions
-    icon_path = os.path.abspath('runviewer.ico')
-    executable = sys.executable.lower()
-    if not executable.endswith('w.exe'):
-        executable = executable.replace('.exe', 'w.exe')
-    relaunch_command = executable + ' ' + os.path.abspath(__file__.replace('.pyc', '.py'))
-    relaunch_display_name = app_descriptions['runviewer']
-    set_appusermodel(window_id, appids['runviewer'], icon_path, relaunch_command, relaunch_display_name)
 
 
 SHOT_MODEL__COLOUR_INDEX = 0
@@ -227,21 +220,10 @@ class ColourDelegate(QItemDelegate):
         editor.setGeometry(option.rect)
 
 
-class RunviewerMainWindow(QMainWindow):
-    # A signal for when the window manager has created a new window for this widget:
-    newWindow = Signal(int)
-
-    def event(self, event):
-        result = QMainWindow.event(self, event)
-        if event.type() == QEvent.WinIdChange:
-            self.newWindow.emit(self.effectiveWinId())
-        return result
-
-
 class RunViewer(object):
     def __init__(self, exp_config):
         splash.update_text('loading graphical interface')
-        self.ui = UiLoader().load(os.path.join(runviewer_dir, 'main.ui'), RunviewerMainWindow())
+        self.ui = UiLoader().load(os.path.join(runviewer_dir, 'main.ui'))
 
         # setup shot treeview model
         self.shot_model = QStandardItemModel()
@@ -359,9 +341,6 @@ class RunViewer(object):
         # Keyboard shortcuts:
         QShortcut('Del', self.ui.shot_treeview, lambda: self.on_remove_shots(confirm=True))
         QShortcut('Shift+Del', self.ui.shot_treeview, lambda: self.on_remove_shots(confirm=False))
-
-        if os.name == 'nt':
-            self.ui.newWindow.connect(set_win_appusermodel)
 
         splash.update_text('done')
         self.ui.show()
@@ -1696,11 +1675,6 @@ if __name__ == "__main__":
     exp_config = LabConfig(required_params = {"DEFAULT": ["experiment_name"], "paths": ["shared_drive", "experiment_shot_storage"], 'ports': ['runviewer']})
 
     port = int(exp_config.get('ports', 'runviewer'))
-    myappid = 'monashbec.runviewer'  # arbitrary string
-    try:
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
-    except:
-        logger.info('Not on a windows machine')
     # Start experiment server
     experiment_server = RunviewerServer(port)
 
