@@ -22,6 +22,12 @@ VERSION_SCHEME["version_scheme"] = os.environ.get(
 )
 VERSION_SCHEME["local_scheme"] = os.environ.get("SCM_LOCAL_SCHEME", "node-and-date")
 
+VERSION_SCHEME = {}
+VERSION_SCHEME["version_scheme"] = os.environ.get(
+    "SCM_VERSION_SCHEME", "release-branch-semver"
+)
+VERSION_SCHEME["local_scheme"] = os.environ.get("SCM_LOCAL_SCHEME", "node-and-date")
+
 setup(
     use_scm_version=VERSION_SCHEME,
     cmdclass=CMDCLASS,
