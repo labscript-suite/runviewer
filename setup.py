@@ -49,7 +49,8 @@ except ImportError:
 INSTALL_REQUIRES = [
     "labscript_devices",
     "labscript_utils >=2.15",
-    "pyqtgraph >=0.9.10",
+    "pyqtgraph >=0.11.0rc0;         python_version >= '3.8'",
+    "pyqtgraph >=0.9.10;            python_version < '3.8'",
     "qtutils >=2.0.0",
     "zprocess",
     "numpy >=1.15",
