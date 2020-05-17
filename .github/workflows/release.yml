@@ -34,6 +34,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Unshallow
+        if: github.event.ref_type != 'tag'
         run: |
           git fetch --prune --unshallow
           git describe --tags
@@ -47,7 +48,7 @@ jobs:
           SCM_LOCAL_SCHEME: no-local-version
         run: |
           python -m pip install --upgrade pip setuptools wheel
-          pip install -U git+https://github.com/chrisjbillington/setuptools_scm.git@release-branch-semver-scheme
+          pip install -U git+https://github.com/pypa/setuptools_scm.git@8e6aa2b5fd42cb257c86e6dbe720eaee6d1e2c9b
           python setup.py sdist bdist_wheel
           SCM_VERSION=$(python setup.py --version)
           echo "::set-env name=SCM_VERSION::$SCM_VERSION"
