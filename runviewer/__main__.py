@@ -1,6 +1,6 @@
 #####################################################################
 #                                                                   #
-# /main.pyw                                                         #
+# __main__.py                                                       #
 #                                                                   #
 # Copyright 2014, Monash University                                 #
 #                                                                   #
@@ -10,18 +10,8 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
-from __future__ import division, unicode_literals, print_function, absolute_import
-from labscript_utils import PY2
-
 import os
 import labscript_utils.excepthook
-
-try:
-    from labscript_utils import check_version
-except ImportError:
-    raise ImportError('Require labscript_utils > 2.1.0')
-
-check_version('labscript_utils', '2.15.0', '3')
 
 # Associate app windows with OS menu shortcuts:
 import desktop_app
@@ -39,22 +29,10 @@ import sys
 import time
 import threading
 import logging
-import socket
-if PY2:
-    str = unicode
-    from Queue import Queue
-else:
-    from queue import Queue
+from queue import Queue
 import ast
 import pprint
-
 import signal
-# Quit on ctrl-c
-signal.signal(signal.SIGINT, signal.SIG_DFL)
-
-
-splash.update_text('importing Qt')
-check_version('qtutils', '2.0.0', '3.0.0')
 
 splash.update_text('importing labscript suite modules')
 from labscript_utils.setup_logging import setup_logging
@@ -65,23 +43,19 @@ splash.update_text('importing h5_lock and h5py')
 import labscript_utils.h5_lock
 import h5py
 
-# This must be bumped until after the h5_lock import
-# This is because the check imports pyqtgraph, which imports h5py
-# h5py must be imported after h5_lock, thus we do the check here
-splash.update_text('importing pyqtgraph')
-check_version('pyqtgraph', '0.9.10', '1')
-
+# No splash update for Qt - the splash screen already imported it
 from qtutils.qt.QtCore import *
 from qtutils.qt.QtGui import *
 from qtutils.qt.QtWidgets import *
+
+splash.update_text('importing pyqtgraph')
+import pyqtgraph as pg
 
 splash.update_text('importing numpy')
 import numpy
 splash.update_text('importing scipy')
 from scipy import interpolate
 
-# must be imported after PySide/PyQt4
-import pyqtgraph as pg
 pg.setConfigOption('background', 'w')
 pg.setConfigOption('foreground', 'k')
 
@@ -91,8 +65,7 @@ splash.update_text('importing labscript suite modules')
 from labscript_utils.connections import ConnectionTable
 import labscript_devices
 
-from labscript_utils.labconfig import LabConfig, config_prefix
-check_version('labscript_utils', '2.11.0', '3')
+from labscript_utils.labconfig import LabConfig
 from labscript_utils.ls_zprocess import ZMQServer, ProcessTree
 process_tree = ProcessTree.instance()
 process_tree.zlock_client.set_process_name('runviewer')
@@ -1685,5 +1658,12 @@ if __name__ == "__main__":
 
     def execute_program():
         qapplication.exec_()
+
+    # Let the interpreter run every 500ms so it sees Ctrl-C interrupts:
+    timer = QTimer()
+    timer.start(500)
+    timer.timeout.connect(lambda: None)
+    # Upon seeing a ctrl-c interrupt, quit the event loop
+    signal.signal(signal.SIGINT, lambda *args: qapplication.exit())
 
     sys.exit(execute_program())
