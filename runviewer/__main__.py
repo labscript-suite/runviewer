@@ -65,7 +65,7 @@ splash.update_text('importing labscript suite modules')
 from labscript_utils.connections import ConnectionTable
 import labscript_devices
 
-from labscript_utils.labconfig import LabConfig
+from labscript_utils.labconfig import LabConfig, save_appconfig, load_appconfig
 from labscript_utils.ls_zprocess import ZMQServer, ProcessTree
 process_tree = ProcessTree.instance()
 process_tree.zlock_client.set_process_name('runviewer')
@@ -592,11 +592,8 @@ class RunViewer(object):
         if isinstance(config_file, tuple):
             config_file, _ = config_file
         if config_file:
-            runviewer_config = LabConfig(config_file)
-            try:
-                channels = ast.literal_eval(runviewer_config.get('runviewer_state', 'Channels'))
-            except (LabConfig.NoOptionError, LabConfig.NoSectionError):
-                channels = {}
+            runviewer_config = load_appconfig(config_file).get('runviewer_state', {})
+            channels = runviewer_config.get('channels', {})
 
             for row, (channel, checked) in enumerate(channels):
                 check_items = self.channel_model.findItems(channel)
@@ -621,14 +618,13 @@ class RunViewer(object):
             save_file, _ = save_file
 
         if save_file:
-            runviewer_config = LabConfig(save_file)
 
             channels = []
             for row in range(self.channel_model.rowCount()):
                 item = self.channel_model.item(row)
                 channels.append((item.text(), item.checkState() == Qt.Checked))
 
-            runviewer_config.set('runviewer_state', 'Channels', pprint.pformat(channels))
+            save_appconfig(save_file, {'runviewer_state': {'channels': channels}})
 
     def on_toggle_shutter(self, checked, current_shot):
         for channel in self.shutter_lines:
