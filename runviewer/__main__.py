@@ -70,7 +70,7 @@ from labscript_utils.ls_zprocess import ZMQServer, ProcessTree
 process_tree = ProcessTree.instance()
 process_tree.zlock_client.set_process_name('runviewer')
 
-from runviewer.resample import resample as _resample
+from labscript_c_extensions.runviewer.resample import resample as _resample
 
 
 SHOT_MODEL__COLOUR_INDEX = 0
