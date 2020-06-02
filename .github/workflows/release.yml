@@ -20,8 +20,8 @@ env:
   ANACONDA_USER: labscript-suite
 
   # Configuration for a package with compiled extensions:
-  PURE: false
-  NOARCH: false
+  # PURE: false
+  # NOARCH: false
 
   # Configuration for a package with no extensions, but with dependencies that differ by
   # platform or Python version:
@@ -32,8 +32,8 @@ env:
   # platforms and Python versions. For this configuration you should comment out all but
   # the first entry in the job matrix of the build job since multiple platforms are not
   # needed.
-  # PURE: true
-  # NOARCH: true
+  PURE: true
+  NOARCH: true
 
 jobs:
   build:
