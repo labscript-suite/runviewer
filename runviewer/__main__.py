@@ -33,6 +33,7 @@ from queue import Queue
 import ast
 import pprint
 import signal
+import concurrent.futures
 
 splash.update_text('importing labscript suite modules')
 from labscript_utils.setup_logging import setup_logging
@@ -1226,40 +1227,54 @@ class RunViewer(object):
         return y_out
 
     def _resample_thread(self):
-        logger = logging.getLogger('runviewer.resample_thread')
-        while True:
-            if self._resample:
-                self._resample = False
-                # print 'resampling'
-                ticked_shots = inmain(self.get_selected_shots_and_colours)
-                for shot, (colour, shutters_checked) in ticked_shots.items():
-                    for channel in shot.traces:
-                        if self.channel_checked_and_enabled(channel):
-                            try:
-                                xmin, xmax, dx = self._get_resample_params(channel, shot)
+        # logger = logging.getLogger('runviewer.resample_thread')
+        with concurrent.futures.ThreadPoolExecutor(max_workers=os.cpu_count()) as executer:
+            while True:
+                if self._resample:
+                    self._resample = False
+                    channel_data = self.__get_all_resample_params()
 
-                                # We go a bit outside the visible range so that scrolling
-                                # doesn't immediately go off the edge of the data, and the
-                                # next resampling might have time to fill in more data before
-                                # the user sees any empty space.
-                                if self.scale_time:
-                                    xnew, ynew = self.resample(shot.scaled_times(channel), shot.traces[channel][1], xmin, xmax, shot.stop_time, dx)
-                                else:
-                                    xnew, ynew = self.resample(shot.traces[channel][0], shot.traces[channel][1], xmin, xmax, shot.stop_time, dx)
-                                inmain(self.plot_items[channel][shot].setData, xnew, ynew, pen=pg.mkPen(QColor(colour), width=2), stepMode=True)
-                            except Exception:
-                                #self._resample = True
-                                pass
-                        else:
-                            logger.info('ignoring channel %s' % channel)
-            time.sleep(0.5)
+                    results = []
+                    for args in channel_data:
+                        results.append(executer.submit(self.__pool_resample, *args))
+
+                    # wait for all inmain_later calls from threadpool to finish before we trigger a new resample
+                    for future in results:
+                        result = future.result()
+                        if isinstance(result, Queue):
+                            result.get()
+                            
+                time.sleep(0.1)
+
+    @inmain_decorator(wait_for_return=True)
+    def __get_all_resample_params(self):
+        return [(channel, shot, colour, *self._get_resample_params(channel, shot))
+            for shot, (colour, shutters_checked) in self.get_selected_shots_and_colours().items()
+                for channel in shot.traces
+                    if self.channel_checked_and_enabled(channel)
+        ]
+
+    def __pool_resample(self, channel, shot, colour, xmin, xmax, dx):
+        try:
+            # We go a bit outside the visible range so that scrolling
+            # doesn't immediately go off the edge of the data, and the
+            # next resampling might have time to fill in more data before
+            # the user sees any empty space.
+            if self.scale_time:
+                xnew, ynew = self.resample(shot.scaled_times(channel), shot.traces[channel][1], xmin, xmax, shot.stop_time, dx)
+            else:
+                xnew, ynew = self.resample(shot.traces[channel][0], shot.traces[channel][1], xmin, xmax, shot.stop_time, dx)
+            return inmain_later(self.plot_items[channel][shot].setData, xnew, ynew, pen=pg.mkPen(QColor(colour), width=2), stepMode=True)
+        except Exception:
+            #self._resample = True
+            pass
 
     @inmain_decorator(wait_for_return=True)
     def channel_checked_and_enabled(self, channel):
-        logger.info('is channel %s enabled' % channel)
+        # logger.info('is channel %s enabled' % channel)
         index = self.channel_model.index(0, CHANNEL_MODEL__CHANNEL_INDEX)
         indexes = self.channel_model.match(index, Qt.DisplayRole, channel, 1, Qt.MatchExactly)
-        logger.info('number of matches %d' % len(indexes))
+        # logger.info('number of matches %d' % len(indexes))
         if len(indexes) == 1:
             check_item = self.channel_model.itemFromIndex(indexes[0])
             if check_item.checkState() == Qt.Checked and check_item.isEnabled():
