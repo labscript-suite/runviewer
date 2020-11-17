@@ -11,6 +11,9 @@ runviewer
    :hidden:
    :caption: DOCUMENTATION
 
+   introduction
+   usage
+
    
 
 .. toctree::
