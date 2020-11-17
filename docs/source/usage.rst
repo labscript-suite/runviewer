@@ -69,7 +69,7 @@ which is a useful aid when switching between regularly-used experiments.
     reorderable list of channels contained within the loaded shots. The order here determines
     the order of plots in (3). Only enabled channels will be displayed in (3). (3) Plots of the
     output traces for the selected channels in the selected shots. Here we show data from 2 shots
-    of a real experiment sequence from our lab used to study vortex clustering dynamics [127].
+    of a real experiment sequence from the Monash lab used to study vortex clustering dynamics [2].
     The two shots loaded demonstrate how you can observe differences in output between shots
     in a sequence (in this case due to varying the time between stirring and imaging the vortex
     clusters). In this figure we display the entire length of the trace, which makes it difficult
@@ -80,7 +80,7 @@ which is a useful aid when switching between regularly-used experiments.
 The third section comprises the plotting region. We use the Python plotting library
 :doc:`pyqtgraph <pyqtgraph:index>` to generate the plots. This choice was primarily made due to the performance
 of pyqtgraph, which is significantly faster than other common Python plotting libraries
-such as matplotlib. [1]_ The user can pan and zoom the plots produced by pyqtgraph using
+such as matplotlib. [3]_ The user can pan and zoom the plots produced by pyqtgraph using
 the mouse (by holding left or right mouse button respectively while moving the mouse).
 The time axes of each plot are linked together so that multiple output traces can be easily
 compared to each other. Two buttons are then provided at the top of the interface for
@@ -133,7 +133,14 @@ to complete in the background.
 
 .. rubric:: Footnotes
 
-.. [1] We typically use matplotlib in the labscript suite as it is a widely known package with an almost
+.. [1] Documentation taken from Phillip T. Starkey *A software framework for control and automation of precisely timed experiments*
+    Thesis, Monash University (2019) https://doi.org/10.26180/5d1db8ffe29ef
+
+.. [2] S. P. Johnstone, A. J. Groszek, P. T. Starkey, C. J. Billington, T. P. Simula, and
+    K. Helmerson. *Evolution of large-scale flow from turbulence in a two-dimensional
+    superfluid* Science **364**, 1267 (2019) https://doi.org/10.1126/science.aat5793
+
+.. [3] We typically use matplotlib in the labscript suite as it is a widely known package with an almost
     identical syntax to MATLAB. This means that many users are already familiar with the syntax needed
     to create plots. As the user is not required to write or modify the code that generates the plots
     in runviewer, this benefit was not applicable and so it was worth using pyqtgraph for the increased

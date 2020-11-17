@@ -24,7 +24,7 @@ the independent clocking of devices from a single PulseBlaster pseudoclock. Simi
 .. rubric:: Footnotes
 
 .. [1] Documentation taken from Starkey, Phillip T. *A software framework for control and automation of precisely timed experiments*
-        Thesis, Monash University (2019) https://doi.org/10.26180/5d1db8ffe29ef
+    Thesis, Monash University (2019) https://doi.org/10.26180/5d1db8ffe29ef
 
 .. [2] While this is always true in time, the output values may not be correctly quantised if the labscript
     device implementation does not quantise the output values correctly and instead relies on BLACS, 
