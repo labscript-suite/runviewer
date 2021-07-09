@@ -69,7 +69,7 @@ which is a useful aid when switching between regularly-used experiments.
     reorderable list of channels contained within the loaded shots. The order here determines
     the order of plots in (3). Only enabled channels will be displayed in (3). (3) Plots of the
     output traces for the selected channels in the selected shots. Here we show data from 2 shots
-    of a real experiment sequence from the Monash lab used to study vortex clustering dynamics [2].
+    of a real experiment sequence from the Monash lab used to study vortex clustering dynamics [2]_.
     The two shots loaded demonstrate how you can observe differences in output between shots
     in a sequence (in this case due to varying the time between stirring and imaging the vortex
     clusters). In this figure we display the entire length of the trace, which makes it difficult

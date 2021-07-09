@@ -6,6 +6,8 @@
 runviewer
 =========
 
+Visualizes hardware-timed experiment instructions.
+
 .. toctree::
    :maxdepth: 2
    :hidden:
