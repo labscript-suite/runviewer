@@ -51,6 +51,7 @@ extensions = [
 
 autodoc_typehints = 'description'
 numfig = True
+autodoc_mock_imports = ['labscript_utils']
 
 # mock missing site packages methods
 import site
