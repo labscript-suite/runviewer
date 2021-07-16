@@ -6,10 +6,16 @@
 runviewer
 =========
 
+Visualizes hardware-timed experiment instructions.
+
 .. toctree::
    :maxdepth: 2
    :hidden:
    :caption: DOCUMENTATION
+
+   introduction
+   usage
+   api/index
 
    
 
