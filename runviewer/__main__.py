@@ -64,7 +64,7 @@ from qtutils import *
 import qtutils.icons
 splash.update_text('importing labscript suite modules')
 from labscript_utils.connections import ConnectionTable
-import labscript_devices
+from labscript_utils import device_registry
 
 from labscript_utils.labconfig import LabConfig, save_appconfig, load_appconfig
 from labscript_utils.ls_zprocess import ZMQServer, ProcessTree
@@ -1536,8 +1536,7 @@ class Shot(object):
             print('loading %s' % device.name)
             module = device.device_class
             # Load the master pseudoclock class
-            # labscript_devices.import_device(module)
-            device_class = labscript_devices.get_runviewer_parser(module)
+            device_class = device_registry.get_runviewer_parser(module)
             device_instance = device_class(self.path, device)
             clocklines_and_triggers = device_instance.get_traces(self.add_trace, clock)
 
