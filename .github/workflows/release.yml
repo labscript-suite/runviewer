@@ -42,25 +42,25 @@ jobs:
     strategy:
       matrix:
         include:
-          - { os: ubuntu-latest,   python: 3.9,  arch: x64 }
           - { os: ubuntu-latest,   python: 3.8,  arch: x64 }
-          - { os: ubuntu-latest,   python: 3.7,  arch: x64 }
-          - { os: ubuntu-latest,   python: 3.6,  arch: x64 }
+          #- { os: ubuntu-latest,   python: 3.9,  arch: x64 }
+          #- { os: ubuntu-latest,   python: 3.7,  arch: x64 }
+          #- { os: ubuntu-latest,   python: 3.6,  arch: x64 }
 
-          - { os: macos-latest,    python: 3.9,  arch: x64 }
-          - { os: macos-latest,    python: 3.8,  arch: x64 }
-          - { os: macos-latest,    python: 3.7,  arch: x64 }
-          - { os: macos-latest,    python: 3.6,  arch: x64 }
+          #- { os: macos-latest,    python: 3.9,  arch: x64 }
+          #- { os: macos-latest,    python: 3.8,  arch: x64 }
+          #- { os: macos-latest,    python: 3.7,  arch: x64 }
+          #- { os: macos-latest,    python: 3.6,  arch: x64 }
 
-          - { os: windows-latest,  python: 3.9,  arch: x64 }
-          - { os: windows-latest,  python: 3.8,  arch: x64 }
-          - { os: windows-latest,  python: 3.7,  arch: x64 }
-          - { os: windows-latest,  python: 3.6,  arch: x64 }
+          #- { os: windows-latest,  python: 3.9,  arch: x64 }
+          #- { os: windows-latest,  python: 3.8,  arch: x64 }
+          #- { os: windows-latest,  python: 3.7,  arch: x64 }
+          #- { os: windows-latest,  python: 3.6,  arch: x64 }
 
-          - { os: windows-latest,  python: 3.9,  arch: x86 }
-          - { os: windows-latest,  python: 3.8,  arch: x86 }
-          - { os: windows-latest,  python: 3.7,  arch: x86 }
-          - { os: windows-latest,  python: 3.6,  arch: x86 }
+          #- { os: windows-latest,  python: 3.9,  arch: x86 }
+          #- { os: windows-latest,  python: 3.8,  arch: x86 }
+          #- { os: windows-latest,  python: 3.7,  arch: x86 }
+          #- { os: windows-latest,  python: 3.6,  arch: x86 }
 
     if: github.repository == 'labscript-suite/runviewer' && (github.event_name != 'create' || github.event.ref_type != 'branch')
     steps:
