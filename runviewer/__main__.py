@@ -562,9 +562,9 @@ class RunViewer(object):
             last_time = t
 
         if shot is not None and self.scale_time:
-            self._time_axis_plot[0].getAxis("bottom").setTicks([[[0, 0], [shot.stop_time, shot.stop_time]]])
+            self._time_axis_plot[0].getAxis("bottom").setTicks([[[0, str(0)], [shot.stop_time, str(shot.stop_time)]]])
             for plot in self.plot_widgets.values():
-                plot.getAxis("bottom").setTicks([[[0, 0], [shot.stop_time, shot.stop_time]]])
+                plot.getAxis("bottom").setTicks([[[0, str(0)], [shot.stop_time, str(shot.stop_time)]]])
         else:
             self._time_axis_plot[0].getAxis("bottom").setTicks(None)
             for plot in self.plot_widgets.values():
