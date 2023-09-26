@@ -934,7 +934,7 @@ class RunViewer(object):
                         if shot not in self.plot_items[channel]:
                             # plot_item = self.plot_widgets[channel].plot(shot.traces[channel][0], shot.traces[channel][1], pen=pg.mkPen(QColor(colour), width=2))
                             # Add empty plot as it the custom resampling we do will happen quicker if we don't attempt to first plot all of the data
-                            plot_item = self.plot_widgets[channel].plot([0, 0], [0], pen=pg.mkPen(QColor(colour), width=2), stepMode=True)
+                            plot_item = self.plot_widgets[channel].plot([0, 0], [0], pen=pg.mkPen(QColor(colour), width=2), stepMode='center')
                             self.plot_items[channel][shot] = plot_item
 
                         # Add Shutter Markers of newly ticked Shots
@@ -979,7 +979,7 @@ class RunViewer(object):
             if channel in shot.traces:
                 # plot_item = self.plot_widgets[channel].plot(shot.traces[channel][0], shot.traces[channel][1], pen=pg.mkPen(QColor(colour), width=2))
                 # Add empty plot as it the custom resampling we do will happen quicker if we don't attempt to first plot all of the data
-                plot_item = self.plot_widgets[channel].plot([0, 0], [0], pen=pg.mkPen(QColor(colour), width=2), stepMode=True)
+                plot_item = self.plot_widgets[channel].plot([0, 0], [0], pen=pg.mkPen(QColor(colour), width=2), stepMode='center')
                 self.plot_items[channel][shot] = plot_item
 
                 if len(shot.traces[channel]) == 3:
@@ -1106,7 +1106,7 @@ class RunViewer(object):
             # i += 1
 
             # Get values until we get to the end of the data:
-            while j < len(x_in) and i < len(x_out) - 2:  # Leave one spare for the final data point and one because stepMode=True requires len(y)=len(x)-1
+            while j < len(x_in) and i < len(x_out) - 2:  # Leave one spare for the final data point and one because stepMode='center' requires len(y)=len(x)-1
                 # This is 'nearest neighbour on the left' interpolation. It's
                 # what we want if none of the source values checked in the
                 # upcoming loop are used:
@@ -1264,7 +1264,7 @@ class RunViewer(object):
                 xnew, ynew = self.resample(shot.scaled_times(channel), shot.traces[channel][1], xmin, xmax, shot.stop_time, dx)
             else:
                 xnew, ynew = self.resample(shot.traces[channel][0], shot.traces[channel][1], xmin, xmax, shot.stop_time, dx)
-            return inmain_later(self.plot_items[channel][shot].setData, xnew, ynew, pen=pg.mkPen(QColor(colour), width=2), stepMode=True)
+            return inmain_later(self.plot_items[channel][shot].setData, xnew, ynew, pen=pg.mkPen(QColor(colour), width=2), stepMode='center')
         except Exception:
             #self._resample = True
             pass
