@@ -1548,10 +1548,7 @@ class Shot(object):
                     self._load_device(grandchild_device, trace)
 
         except Exception as e:
-            # TODO: print/log exception traceback
-            # if device.name == 'ni_card_0' or device.name == 'pulseblaster_0' or device.name == 'pineblaster_0' or device.name == 'ni_card_1' or device.name == 'novatechdds9m_0':
-            #    raise
-            # raise
+
             if hasattr(device, 'name'):
                 logger.info(f'Failed to load device {device.name:s}, exception was:\n'+
                             ''.join(traceback.format_exception(type(e), e, e.__traceback__)))
