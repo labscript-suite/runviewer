@@ -34,6 +34,7 @@ import ast
 import pprint
 import signal
 import concurrent.futures
+import traceback
 
 splash.update_text('importing labscript suite modules')
 from labscript_utils.setup_logging import setup_logging
@@ -762,6 +763,7 @@ class RunViewer(object):
             self.on_toggle_shutter(item.checkState(), current_shot)
 
     def load_shot(self, filepath):
+        logger.info(f'loading run from {filepath:s}')
         shot = Shot(filepath)
 
         # add shot to shot list
@@ -1533,7 +1535,7 @@ class Shot(object):
 
     def _load_device(self, device, clock=None):
         try:
-            print('loading %s' % device.name)
+            logger.info('loading %s' % device.name)
             module = device.device_class
             # Load the master pseudoclock class
             device_class = device_registry.get_runviewer_parser(module)
@@ -1545,15 +1547,14 @@ class Shot(object):
                 for grandchild_device_name, grandchild_device in child_device.child_list.items():
                     self._load_device(grandchild_device, trace)
 
-        except Exception:
-            # TODO: print/log exception traceback
-            # if device.name == 'ni_card_0' or device.name == 'pulseblaster_0' or device.name == 'pineblaster_0' or device.name == 'ni_card_1' or device.name == 'novatechdds9m_0':
-            #    raise
-            # raise
+        except Exception as e:
+
             if hasattr(device, 'name'):
-                print('Failed to load device %s' % device.name)
+                logger.info(f'Failed to load device {device.name:s}, exception was:\n'+
+                            ''.join(traceback.format_exception(type(e), e, e.__traceback__)))
             else:
-                print('Failed to load device (unknown name, device object does not have attribute name)')
+                logger.info('Failed to load device (unknown name, device object does not have attribute name), exception was:\n'+
+                            ''.join(traceback.format_exception(type(e), e, e.__traceback__)))
 
         # backwards compat
         with h5py.File(self.path, 'r') as file:
