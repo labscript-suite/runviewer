@@ -34,6 +34,7 @@ import ast
 import pprint
 import signal
 import concurrent.futures
+import traceback
 
 splash.update_text('importing labscript suite modules')
 from labscript_utils.setup_logging import setup_logging
@@ -562,9 +563,9 @@ class RunViewer(object):
             last_time = t
 
         if shot is not None and self.scale_time:
-            self._time_axis_plot[0].getAxis("bottom").setTicks([[[0, 0], [shot.stop_time, shot.stop_time]]])
+            self._time_axis_plot[0].getAxis("bottom").setTicks([[[0, str(0)], [shot.stop_time, str(shot.stop_time)]]])
             for plot in self.plot_widgets.values():
-                plot.getAxis("bottom").setTicks([[[0, 0], [shot.stop_time, shot.stop_time]]])
+                plot.getAxis("bottom").setTicks([[[0, str(0)], [shot.stop_time, str(shot.stop_time)]]])
         else:
             self._time_axis_plot[0].getAxis("bottom").setTicks(None)
             for plot in self.plot_widgets.values():
@@ -762,6 +763,7 @@ class RunViewer(object):
             self.on_toggle_shutter(item.checkState(), current_shot)
 
     def load_shot(self, filepath):
+        logger.info(f'loading run from {filepath:s}')
         shot = Shot(filepath)
 
         # add shot to shot list
@@ -934,7 +936,7 @@ class RunViewer(object):
                         if shot not in self.plot_items[channel]:
                             # plot_item = self.plot_widgets[channel].plot(shot.traces[channel][0], shot.traces[channel][1], pen=pg.mkPen(QColor(colour), width=2))
                             # Add empty plot as it the custom resampling we do will happen quicker if we don't attempt to first plot all of the data
-                            plot_item = self.plot_widgets[channel].plot([0, 0], [0], pen=pg.mkPen(QColor(colour), width=2), stepMode=True)
+                            plot_item = self.plot_widgets[channel].plot([0, 0], [0], pen=pg.mkPen(QColor(colour), width=2), stepMode='center')
                             self.plot_items[channel][shot] = plot_item
 
                         # Add Shutter Markers of newly ticked Shots
@@ -979,7 +981,7 @@ class RunViewer(object):
             if channel in shot.traces:
                 # plot_item = self.plot_widgets[channel].plot(shot.traces[channel][0], shot.traces[channel][1], pen=pg.mkPen(QColor(colour), width=2))
                 # Add empty plot as it the custom resampling we do will happen quicker if we don't attempt to first plot all of the data
-                plot_item = self.plot_widgets[channel].plot([0, 0], [0], pen=pg.mkPen(QColor(colour), width=2), stepMode=True)
+                plot_item = self.plot_widgets[channel].plot([0, 0], [0], pen=pg.mkPen(QColor(colour), width=2), stepMode='center')
                 self.plot_items[channel][shot] = plot_item
 
                 if len(shot.traces[channel]) == 3:
@@ -1106,7 +1108,7 @@ class RunViewer(object):
             # i += 1
 
             # Get values until we get to the end of the data:
-            while j < len(x_in) and i < len(x_out) - 2:  # Leave one spare for the final data point and one because stepMode=True requires len(y)=len(x)-1
+            while j < len(x_in) and i < len(x_out) - 2:  # Leave one spare for the final data point and one because stepMode='center' requires len(y)=len(x)-1
                 # This is 'nearest neighbour on the left' interpolation. It's
                 # what we want if none of the source values checked in the
                 # upcoming loop are used:
@@ -1264,7 +1266,7 @@ class RunViewer(object):
                 xnew, ynew = self.resample(shot.scaled_times(channel), shot.traces[channel][1], xmin, xmax, shot.stop_time, dx)
             else:
                 xnew, ynew = self.resample(shot.traces[channel][0], shot.traces[channel][1], xmin, xmax, shot.stop_time, dx)
-            return inmain_later(self.plot_items[channel][shot].setData, xnew, ynew, pen=pg.mkPen(QColor(colour), width=2), stepMode=True)
+            return inmain_later(self.plot_items[channel][shot].setData, xnew, ynew, pen=pg.mkPen(QColor(colour), width=2), stepMode='center')
         except Exception:
             #self._resample = True
             pass
@@ -1533,7 +1535,7 @@ class Shot(object):
 
     def _load_device(self, device, clock=None):
         try:
-            print('loading %s' % device.name)
+            logger.info('loading %s' % device.name)
             module = device.device_class
             # Load the master pseudoclock class
             device_class = device_registry.get_runviewer_parser(module)
@@ -1545,15 +1547,14 @@ class Shot(object):
                 for grandchild_device_name, grandchild_device in child_device.child_list.items():
                     self._load_device(grandchild_device, trace)
 
-        except Exception:
-            # TODO: print/log exception traceback
-            # if device.name == 'ni_card_0' or device.name == 'pulseblaster_0' or device.name == 'pineblaster_0' or device.name == 'ni_card_1' or device.name == 'novatechdds9m_0':
-            #    raise
-            # raise
+        except Exception as e:
+
             if hasattr(device, 'name'):
-                print('Failed to load device %s' % device.name)
+                logger.info(f'Failed to load device {device.name:s}, exception was:\n'+
+                            ''.join(traceback.format_exception(type(e), e, e.__traceback__)))
             else:
-                print('Failed to load device (unknown name, device object does not have attribute name)')
+                logger.info('Failed to load device (unknown name, device object does not have attribute name), exception was:\n'+
+                            ''.join(traceback.format_exception(type(e), e, e.__traceback__)))
 
         # backwards compat
         with h5py.File(self.path, 'r') as file:
