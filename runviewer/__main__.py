@@ -697,6 +697,9 @@ class RunViewer(object):
             # unselect shot
             item.setCheckState(Qt.Unchecked)
             shutter_item.setCheckState(Qt.Unchecked)
+            # remove shot from markers list
+            shot_combobox_index = self.ui.markers_comboBox.findText(os.path.basename(shot.path))
+            self.ui.markers_comboBox.removeItem(shot_combobox_index)
             # remove row
             self.shot_model.removeRow(row)
             del shot
