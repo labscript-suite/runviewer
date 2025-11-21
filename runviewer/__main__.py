@@ -1671,7 +1671,7 @@ if __name__ == "__main__":
     splash.hide()
 
     def execute_program():
-        qapplication.exec_()
+        qapplication.exec()
 
     # Let the interpreter run every 500ms so it sees Ctrl-C interrupts:
     timer = QTimer()
