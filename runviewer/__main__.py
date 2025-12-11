@@ -46,7 +46,7 @@ import labscript_utils.h5_lock
 import h5py
 
 # No splash update for Qt - the splash screen already imported it
-from qtutils.qt import QtCore, QtGui, QtWidgets
+from qtutils.qt import QtCore, QtGui, QtWidgets, QT_ENV
 from qtutils import UiLoader, inmain_later, inmain_decorator
 
 splash.update_text('importing pyqtgraph')
@@ -192,11 +192,24 @@ class ColourDelegate(QtWidgets.QItemDelegate):
     def updateEditorGeometry(self, editor, option, index):
         editor.setGeometry(option.rect)
 
+class RunviewerMainWindow(QtWidgets.QMainWindow):
+
+    def changeEvent(self, event):
+        
+        # theme update only for PySide6
+        if QT_ENV == 'PySide6' and event.type() == QtCore.QEvent.Type.ThemeChange:
+            for widget in self.findChildren(QtWidgets.QWidget):
+                # Complex widgets, like TreeView and TableView require triggering styleSheet and palette updates
+                widget.setStyleSheet(widget.styleSheet())
+                widget.setPalette(widget.palette())
+
+        return super().changeEvent(event)
+
 
 class RunViewer(object):
     def __init__(self, exp_config):
         splash.update_text('loading graphical interface')
-        self.ui = UiLoader().load(os.path.join(runviewer_dir, 'main.ui'))
+        self.ui = UiLoader().load(os.path.join(runviewer_dir, 'main.ui'), RunviewerMainWindow())
 
         # setup shot treeview model
         self.shot_model = QtGui.QStandardItemModel()
