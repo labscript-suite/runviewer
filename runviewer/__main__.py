@@ -1671,7 +1671,6 @@ class RunviewerServer(ZMQServer):
 if __name__ == "__main__":
     qapplication = QtWidgets.QApplication.instance()
     if qapplication is None:
-        qapplication = QApplication(sys.argv)
         qapplication = QtWidgets.QApplication(sys.argv)
 
     shots_to_process_queue = Queue()
