@@ -32,7 +32,7 @@ dependencies = [
     "labscript_utils>=3.1.0b1",
     "labscript-c-extensions",
     "pyqtgraph>=0.11.1",
-    "qtutils>=4.0.0",
+    "qtutils>=4.1.1",
     "zprocess",
     "numpy>=1.15",
     "scipy",
