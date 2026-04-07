@@ -65,7 +65,12 @@ splash.update_text('importing labscript suite modules')
 from labscript_utils.connections import ConnectionTable
 from labscript_utils import device_registry
 
-from labscript_utils.labconfig import LabConfig, save_appconfig, load_appconfig
+from labscript_utils.labconfig import (
+    LabConfig,
+    LabscriptApplication,
+    save_appconfig,
+    load_appconfig,
+)
 from labscript_utils.ls_zprocess import ZMQServer, ProcessTree
 process_tree = ProcessTree.instance()
 process_tree.zlock_client.set_process_name('runviewer')
@@ -209,10 +214,16 @@ class RunviewerMainWindow(QtWidgets.QMainWindow):
         return super().changeEvent(event)
 
 
-class RunViewer(object):
+class RunViewer(LabscriptApplication):
+
+    app_name = 'runviewer'
+    default_config_filename = 'runviewer.ini'
+
     def __init__(self, exp_config):
         splash.update_text('loading graphical interface')
         self.ui = UiLoader().load(os.path.join(runviewer_dir, 'main.ui'), RunviewerMainWindow())
+        self.init_config_window_title()
+        self.exp_config = exp_config
 
         # setup shot treeview model
         self.shot_model = QtGui.QStandardItemModel()
@@ -328,8 +339,11 @@ class RunViewer(object):
         self.ui.actionSave_channel_config.triggered.connect(self.on_save_channel_config)
 
         # Keyboard shortcuts:
-        QtGui.QShortcut('Del', self.ui.shot_treeview, lambda: self.on_remove_shots(confirm=True))
-        QtGui.QShortcut('Shift+Del', self.ui.shot_treeview, lambda: self.on_remove_shots(confirm=False))
+        QtWidgets.QShortcut('Del', self.ui.shot_treeview, lambda: self.on_remove_shots(confirm=True))
+        QtWidgets.QShortcut('Shift+Del', self.ui.shot_treeview, lambda: self.on_remove_shots(confirm=False))
+
+        self.current_config_file = self.get_default_config_file()
+        self.set_config_window_title(self.current_config_file)
 
         splash.update_text('done')
         self.ui.show()
@@ -340,15 +354,7 @@ class RunViewer(object):
         self.plot_items = {}
         self.shutter_lines = {}
 
-        try:
-            self.default_config_path = os.path.join(exp_config.get('DEFAULT', 'app_saved_configs'), 'runviewer')
-        except LabConfig.NoOptionError:
-            exp_config.set('DEFAULT', 'app_saved_configs', os.path.join('%(labscript_suite)s', 'userlib', 'app_saved_configs', '%(apparatus_name)s'))
-            self.default_config_path = os.path.join(exp_config.get('DEFAULT', 'app_saved_configs'), 'runviewer')
-        if not os.path.exists(self.default_config_path):
-            os.makedirs(self.default_config_path)
-
-        self.last_opened_shots_folder = exp_config.get('paths', 'experiment_shot_storage')
+        self.last_opened_shots_folder = self.exp_config.get('paths', 'experiment_shot_storage')
 
         # start resample thread
         self._resample = False
@@ -604,10 +610,16 @@ class RunViewer(object):
             inmain_later(self.load_shot, filepath)
 
     def on_load_channel_config(self):
-        config_file = QtWidgets.QFileDialog.getOpenFileName(self.ui, "Select file to load", self.default_config_path, "Config files (*.ini)")
+        config_file = QtWidgets.QFileDialog.getOpenFileName(
+            self.ui,
+            "Select file to load",
+            self.current_config_file,
+            "Config files (*.ini)",
+        )
         if isinstance(config_file, tuple):
             config_file, _ = config_file
         if config_file:
+            config_file = os.path.abspath(config_file)
             runviewer_config = load_appconfig(config_file).get('runviewer_state', {})
             channels = runviewer_config.get('channels', {})
 
@@ -627,13 +639,21 @@ class RunViewer(object):
                     check_item.setCheckState(QtCore.Qt.Checked if checked else QtCore.Qt.Unchecked)
                     self.channel_model.takeRow(check_item.row())
                     self.channel_model.insertRow(row, check_item)
+            self.current_config_file = config_file
+            self.set_config_window_title(config_file)
 
     def on_save_channel_config(self):
-        save_file = QtWidgets.QFileDialog.getSaveFileName(self.ui, 'Select  file to save current channel configuration', self.default_config_path, "config files (*.ini)")
+        save_file = QtWidgets.QFileDialog.getSaveFileName(
+            self.ui,
+            'Select  file to save current channel configuration',
+            self.current_config_file,
+            "config files (*.ini)",
+        )
         if type(save_file) is tuple:
             save_file, _ = save_file
 
         if save_file:
+            save_file = os.path.abspath(save_file)
 
             channels = []
             for row in range(self.channel_model.rowCount()):
@@ -641,6 +661,8 @@ class RunViewer(object):
                 channels.append((item.text(), item.checkState() == QtCore.Qt.Checked))
 
             save_appconfig(save_file, {'runviewer_state': {'channels': channels}})
+            self.current_config_file = save_file
+            self.set_config_window_title(save_file)
 
     def on_toggle_shutter(self, checked, current_shot):
         for channel in self.shutter_lines:
