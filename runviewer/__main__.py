@@ -12,16 +12,18 @@
 #####################################################################
 import os
 import labscript_utils.excepthook
+from runviewer import APPLICATION_NAME, runviewer_dir
 
 # Associate app windows with OS menu shortcuts:
 import desktop_app
-desktop_app.set_process_appid('runviewer')
+desktop_app.set_process_appid(APPLICATION_NAME)
 
 
 # Splash screen
-from runviewer import runviewer_dir
 from labscript_utils.splash import Splash
-splash = Splash(os.path.join(runviewer_dir, 'runviewer.svg'))
+splash = Splash(
+    os.path.join(runviewer_dir, 'runviewer.svg'), application_name=APPLICATION_NAME
+)
 splash.show()
 
 splash.update_text('importing standard library modules')
@@ -38,7 +40,7 @@ import traceback
 
 splash.update_text('importing labscript suite modules')
 from labscript_utils.setup_logging import setup_logging
-logger = setup_logging('runviewer')
+logger = setup_logging(APPLICATION_NAME)
 labscript_utils.excepthook.set_logger(logger)
 
 splash.update_text('importing h5_lock and h5py')
@@ -68,7 +70,7 @@ from labscript_utils import device_registry
 from labscript_utils.labconfig import LabConfig, save_appconfig, load_appconfig
 from labscript_utils.ls_zprocess import ZMQServer, ProcessTree
 process_tree = ProcessTree.instance()
-process_tree.zlock_client.set_process_name('runviewer')
+process_tree.zlock_client.set_process_name(APPLICATION_NAME)
 
 from labscript_c_extensions.runviewer.resample import resample as _resample
 
