@@ -1,4 +1,4 @@
 {
     "product_name": "Labscript Suite",
-    "modules": {"runviewer": {"display_name": "runviewer - the labscript suite"}}
+    "modules": {"runviewer": {"display_name": "runviewer - the labscript suite", "short_display_name": "runviewer"}}
 }
