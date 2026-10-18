@@ -722,7 +722,7 @@ class RunViewer(object):
         if self.shot_model.indexFromItem(item).column() == SHOT_MODEL__CHECKBOX_INDEX:
 
             # add or remove a colour for this shot
-            checked = item.checkState()
+            checked = item.checkState() == QtCore.Qt.Checked
             row = self.shot_model.indexFromItem(item).row()
             colour_item = self.shot_model.item(row, SHOT_MODEL__COLOUR_INDEX)
             check_shutter = self.shot_model.item(row, SHOT_MODEL__SHUTTER_INDEX)
@@ -777,7 +777,7 @@ class RunViewer(object):
                         self.plot_items[channel][shot].setPen(pg.mkPen(QtGui.QColor(colour()), width=2))
         elif self.shot_model.indexFromItem(item).column() == SHOT_MODEL__SHUTTER_INDEX:
             current_shot = self.shot_model.item(self.shot_model.indexFromItem(item).row(), SHOT_MODEL__CHECKBOX_INDEX).data()
-            self.on_toggle_shutter(item.checkState(), current_shot)
+            self.on_toggle_shutter(item.checkState() == QtCore.Qt.Checked, current_shot)
 
     def load_shot(self, filepath):
         logger.info(f'loading run from {filepath:s}')
@@ -827,7 +827,7 @@ class RunViewer(object):
             if item.checkState() == QtCore.Qt.Checked:
                 shot = item.data()
                 colour_item_data = colour_item.data(QtCore.Qt.UserRole)
-                ticked_shots[shot] = (colour_item_data(), shutter_item.checkState())
+                ticked_shots[shot] = (colour_item_data(), shutter_item.checkState() == QtCore.Qt.Checked)
         return ticked_shots
 
     def update_channels_treeview(self):
