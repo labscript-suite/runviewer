@@ -725,8 +725,7 @@ class RunViewer(object):
             item.setCheckState(QtCore.Qt.Unchecked)
             shutter_item.setCheckState(QtCore.Qt.Unchecked)
             # remove shot from markers list
-            shot_combobox_index = self.ui.markers_comboBox.findText(os.path.basename(shot.path))
-            self.ui.markers_comboBox.removeItem(shot_combobox_index)
+            self.ui.markers_comboBox.removeItem(self._markers_combobox_index(shot))
             # remove row
             self.shot_model.removeRow(row)
             del shot
@@ -753,7 +752,7 @@ class RunViewer(object):
                 icon = QtGui.QIcon(pixmap)
                 colour_item.setData(lambda clist=self.shot_colour_delegate._colours, colour=colour: int_to_enum(clist, colour), QtCore.Qt.UserRole)
                 colour_item.setData(icon, QtCore.Qt.DecorationRole)
-                shot_combobox_index = self.ui.markers_comboBox.findText(os.path.basename(item.data().path))
+                shot_combobox_index = self._markers_combobox_index(item.data())
                 self.ui.markers_comboBox.model().item(shot_combobox_index).setEnabled(True)
                 if self.ui.markers_comboBox.currentIndex() == 0:
                     self.ui.markers_comboBox.setCurrentIndex(shot_combobox_index)
@@ -765,7 +764,7 @@ class RunViewer(object):
             else:
                 # colour = None
                 # icon = None
-                shot_combobox_index = self.ui.markers_comboBox.findText(os.path.basename(item.data().path))
+                shot_combobox_index = self._markers_combobox_index(item.data())
                 self.ui.markers_comboBox.model().item(shot_combobox_index).setEnabled(False)
                 if shot_combobox_index == self.ui.markers_comboBox.currentIndex():
                     self.ui.markers_comboBox.setCurrentIndex(0)
@@ -824,11 +823,17 @@ class RunViewer(object):
         # items.append(path_item)
         self.shot_model.appendRow(items)
         self.ui.markers_comboBox.addItem(os.path.basename(shot.path), shot)
-        shot_combobox_index = self.ui.markers_comboBox.findText(os.path.basename(shot.path))
+        shot_combobox_index = self.ui.markers_comboBox.count() - 1
         self.ui.markers_comboBox.model().item(shot_combobox_index).setEnabled(False)
 
         # only do this if we are checking the shot we are adding
         # self.update_channels_treeview()
+
+    def _markers_combobox_index(self, shot):
+        for index in range(self.ui.markers_comboBox.count()):
+            if self.ui.markers_comboBox.itemData(index) is shot:
+                return index
+        raise ValueError(f'{shot.path} is not in the markers list')
 
     def get_selected_shots_and_colours(self):
         # get the ticked shots
