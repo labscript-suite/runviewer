@@ -532,11 +532,9 @@ class RunViewer(object):
         # combine markers and shutter lines
         markers = list(self.all_marker_items.keys())
         for channel in self.shutter_lines:
-            for shot in self.shutter_lines[channel]:
-                for line in self.shutter_lines[channel][shot][0]:
-                    markers.append(line)
-                for line in self.shutter_lines[channel][shot][1]:
-                    markers.append(line)
+            for close_lines, open_lines in self.shutter_lines[channel].values():
+                markers.extend(close_lines)
+                markers.extend(open_lines)
 
         # Move all Markes/Shutter Lines to new position
         for marker in markers:
