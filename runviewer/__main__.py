@@ -948,27 +948,20 @@ class RunViewer(object):
         for i in range(self.channel_model.rowCount()):
             check_item = self.channel_model.item(i, CHANNEL_MODEL__CHECKBOX_INDEX)
             channel = str(check_item.text())
+            if channel in self.plot_widgets:
+                # Remove the plot items and shutter markers of unticked shots
+                for shot in list(self.plot_items[channel]):
+                    if shot not in ticked_shots:
+                        self.plot_widgets[channel].removeItem(self.plot_items[channel].pop(shot))
+                        if shot in self.shutter_lines[channel]:
+                            close_lines, open_lines = self.shutter_lines[channel].pop(shot)
+                            for line in close_lines + open_lines:
+                                self.plot_widgets[channel].removeItem(line)
             if check_item.checkState() == QtCore.Qt.Checked and check_item.isEnabled():
                 # we want to show this plot
                 # does a plot already exist? If yes, show it
                 if channel in self.plot_widgets:
                     self.plot_widgets[channel].show()
-                    # update the plot
-                    # are there are plot items for this channel which are shown that should not be?
-                    to_delete = []
-                    for shot in self.plot_items[channel]:
-                        if shot not in ticked_shots.keys():
-                            self.plot_widgets[channel].removeItem(self.plot_items[channel][shot])
-                            # Remove Shutter Markers of unticked Shots
-                            if shot in self.shutter_lines[channel]:
-                                for line in self.shutter_lines[channel][shot][0]:
-                                    self.plot_widgets[channel].removeItem(line)
-                                for line in self.shutter_lines[channel][shot][1]:
-                                    self.plot_widgets[channel].removeItem(line)
-                                self.shutter_lines[channel].pop(shot)
-                            to_delete.append(shot)
-                    for shot in to_delete:
-                        del self.plot_items[channel][shot]
 
                     # do we need to add any plot items for shots that were not previously selected?
                     for shot, (colour, shutters_checked) in ticked_shots.items():
@@ -1270,19 +1263,17 @@ class RunViewer(object):
             while True:
                 if self._resample:
                     self._resample = False
-                    channel_data = self.__get_all_resample_params()
-
-                    results = []
-                    for args in channel_data:
-                        results.append(executer.submit(self.__pool_resample, *args))
-
-                    # wait for all inmain_later calls from threadpool to finish before we trigger a new resample
-                    for future in results:
-                        result = future.result()
-                        if isinstance(result, Queue):
-                            result.get()
-                            
+                    self._resample_all(executer)
                 time.sleep(0.1)
+
+    def _resample_all(self, executer):
+        channel_data = self.__get_all_resample_params()
+        results = [executer.submit(self.__pool_resample, *args) for args in channel_data]
+        # wait for all inmain_later calls from threadpool to finish before we trigger a new resample
+        for future in results:
+            result = future.result()
+            if isinstance(result, Queue):
+                result.get()
 
     @inmain_decorator(wait_for_return=True)
     def __get_all_resample_params(self):
