@@ -1019,7 +1019,10 @@ class RunViewer(object):
             close_color = QtGui.QColor(255, 0, 0)
 
             for t, val in shot.shutter_times[channel].items():
-                scaled_t = t
+                if self.scale_time and self.scalehandler is not None:
+                    scaled_t = self.scalehandler.get_scaled_time(t)
+                else:
+                    scaled_t = t
                 if val:  # val != 0, shutter open
                     line = self.plot_widgets[channel].addLine(x=scaled_t, pen=pg.mkPen(color=open_color, width=4., style=QtCore.Qt.DotLine))
                     self.shutter_lines[channel][shot][1].append(line)
