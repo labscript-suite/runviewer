@@ -393,22 +393,18 @@ class RunViewer(object):
         times = sorted(list(self.all_markers.keys()))
         last_time = 0
         for i, (t, m) in enumerate(sorted(self.all_markers.items())):
+            # The time axis line of each marker is labelled with the interval to the
+            # next marker; the last marker has no label
             if i < len(times)-1:
-                delta_t = times[i+1] - t
-            # Now always have a marker at stop time
-            # else:
-                # delta_t = shot.stop_time - t
+                delta_t_label = format_time(times[i+1] - t)
+            else:
+                delta_t_label = None
 
             unscaled_t = t
             if self.scale_time:
                 t = self.scalehandler.get_scaled_time(t)
 
-            color = m['color']
-            r, g, b = color
-            if (r, g, b) == (-1, -1, -1):
-                # Default colour, black:
-                r, g, b = (0, 0, 0)
-            color = QtGui.QColor(r, g, b)
+            color = self._marker_colour(m)
             label = m['label'].decode() if isinstance( m['label'], bytes) else str(m['label'])
             if i == 0:
                 line = self._markers_plot[0].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=QtCore.Qt.DashLine), label=label, labelOpts= {"color": color, "fill": QtGui.QColor(255, 255, 255, 255), "rotateAxis":(1, 0), "anchors": [(0.5, 0),(0.5, 0)]}, movable=False )
@@ -421,10 +417,27 @@ class RunViewer(object):
             self.movable_marker_items[line] = self._markers_plot[0]
             self.marker_times_unscaled[line] = unscaled_t
 
-            line = self._time_axis_plot[0].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=QtCore.Qt.DashLine), label=format_time(delta_t), labelOpts= {"color": color, "fill": QtGui.QColor(255, 255, 255, 255), "rotateAxis":(1, 0), "anchors": [(0.5, 0),(0.5, 0)]}, movable=False )
+            line = self._time_axis_plot[0].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=QtCore.Qt.DashLine), label=delta_t_label, labelOpts= {"color": color, "fill": QtGui.QColor(255, 255, 255, 255), "rotateAxis":(1, 0), "anchors": [(0.5, 0),(0.5, 0)]}, movable=False )
             self.all_marker_items[line] = self._time_axis_plot[0]
             last_time = t
+        for plot_widget in self.plot_widgets.values():
+            self._add_marker_lines(plot_widget)
         self.update_plots()
+
+    @staticmethod
+    def _marker_colour(marker):
+        r, g, b = marker['color']
+        if (r, g, b) == (-1, -1, -1):
+            # Default colour, black:
+            r, g, b = (0, 0, 0)
+        return QtGui.QColor(r, g, b)
+
+    def _add_marker_lines(self, plot_widget):
+        for t, m in self.all_markers.items():
+            if self.scale_time and self.scalehandler is not None:
+                t = self.scalehandler.get_scaled_time(t)
+            line = plot_widget.addLine(x=t, pen=pg.mkPen(color=self._marker_colour(m), width=1.5, style=QtCore.Qt.DashLine))
+            self.all_marker_items[line] = plot_widget
 
     def mouseMovedEvent(self, position, ui, name):
         if self.ui.toggle_tooltip.isChecked():
@@ -447,10 +460,13 @@ class RunViewer(object):
                     unscaled_t = scaled_t
                 if unscaled_t is not None:
                     pos = QtCore.QPoint(glob_pos.x(), glob_pos.y())
-                    plot_data = ui.plotItem.listDataItems()[0].getData()
-                    if plot_data[0] is not None and scaled_t is not None:
-                        nearest_index = numpy.abs(plot_data[0] - scaled_t).argmin() - 1
-                        y_val = "{:.2f}".format(plot_data[1][nearest_index])
+                    data_items = ui.plotItem.listDataItems()
+                    plot_data = data_items[0].getData() if data_items else (None, None)
+                    if plot_data[0] is not None and plot_data[1] is not None and len(plot_data[1]) > 0:
+                        # The plots use stepMode='center': y[i] is the value between x[i] and x[i + 1]
+                        index = numpy.searchsorted(plot_data[0], scaled_t, side='right') - 1
+                        index = min(max(index, 0), len(plot_data[1]) - 1)
+                        y_val = "{:.2f}".format(plot_data[1][index])
                     else:
                         y_val = '-'
                     text = "Plot: {} \nTime: {:.9f}s\nValue: {}".format(name, unscaled_t, y_val)
@@ -471,6 +487,8 @@ class RunViewer(object):
         marker_index = self.ui.markers_comboBox.currentIndex()
         shot = self.ui.markers_comboBox.itemData(marker_index)
         markers_unscaled = sorted(list(self.all_markers.keys()))
+        if len(markers_unscaled) < 2:
+            return
         target_length = shot.stop_time / float(len(markers_unscaled) - 1)
         scaled_times = [target_length * i for i in range(len(markers_unscaled))]
         scalehandler = ScaleHandler(markers_unscaled, scaled_times, shot.stop_time)
@@ -532,11 +550,9 @@ class RunViewer(object):
         # combine markers and shutter lines
         markers = list(self.all_marker_items.keys())
         for channel in self.shutter_lines:
-            for shot in self.shutter_lines[channel]:
-                for line in self.shutter_lines[channel][shot][0]:
-                    markers.append(line)
-                for line in self.shutter_lines[channel][shot][1]:
-                    markers.append(line)
+            for close_lines, open_lines in self.shutter_lines[channel].values():
+                markers.extend(close_lines)
+                markers.extend(open_lines)
 
         # Move all Markes/Shutter Lines to new position
         for marker in markers:
@@ -627,6 +643,7 @@ class RunViewer(object):
                     check_item.setCheckState(QtCore.Qt.Checked if checked else QtCore.Qt.Unchecked)
                     self.channel_model.takeRow(check_item.row())
                     self.channel_model.insertRow(row, check_item)
+            self.update_plot_positions()
 
     def on_save_channel_config(self):
         save_file = QtWidgets.QFileDialog.getSaveFileName(self.ui, 'Select  file to save current channel configuration', self.default_config_path, "config files (*.ini)")
@@ -712,8 +729,7 @@ class RunViewer(object):
             item.setCheckState(QtCore.Qt.Unchecked)
             shutter_item.setCheckState(QtCore.Qt.Unchecked)
             # remove shot from markers list
-            shot_combobox_index = self.ui.markers_comboBox.findText(os.path.basename(shot.path))
-            self.ui.markers_comboBox.removeItem(shot_combobox_index)
+            self.ui.markers_comboBox.removeItem(self._markers_combobox_index(shot))
             # remove row
             self.shot_model.removeRow(row)
             del shot
@@ -740,7 +756,7 @@ class RunViewer(object):
                 icon = QtGui.QIcon(pixmap)
                 colour_item.setData(lambda clist=self.shot_colour_delegate._colours, colour=colour: int_to_enum(clist, colour), QtCore.Qt.UserRole)
                 colour_item.setData(icon, QtCore.Qt.DecorationRole)
-                shot_combobox_index = self.ui.markers_comboBox.findText(os.path.basename(item.data().path))
+                shot_combobox_index = self._markers_combobox_index(item.data())
                 self.ui.markers_comboBox.model().item(shot_combobox_index).setEnabled(True)
                 if self.ui.markers_comboBox.currentIndex() == 0:
                     self.ui.markers_comboBox.setCurrentIndex(shot_combobox_index)
@@ -752,7 +768,7 @@ class RunViewer(object):
             else:
                 # colour = None
                 # icon = None
-                shot_combobox_index = self.ui.markers_comboBox.findText(os.path.basename(item.data().path))
+                shot_combobox_index = self._markers_combobox_index(item.data())
                 self.ui.markers_comboBox.model().item(shot_combobox_index).setEnabled(False)
                 if shot_combobox_index == self.ui.markers_comboBox.currentIndex():
                     self.ui.markers_comboBox.setCurrentIndex(0)
@@ -811,11 +827,17 @@ class RunViewer(object):
         # items.append(path_item)
         self.shot_model.appendRow(items)
         self.ui.markers_comboBox.addItem(os.path.basename(shot.path), shot)
-        shot_combobox_index = self.ui.markers_comboBox.findText(os.path.basename(shot.path))
+        shot_combobox_index = self.ui.markers_comboBox.count() - 1
         self.ui.markers_comboBox.model().item(shot_combobox_index).setEnabled(False)
 
         # only do this if we are checking the shot we are adding
         # self.update_channels_treeview()
+
+    def _markers_combobox_index(self, shot):
+        for index in range(self.ui.markers_comboBox.count()):
+            if self.ui.markers_comboBox.itemData(index) is shot:
+                return index
+        raise ValueError(f'{shot.path} is not in the markers list')
 
     def get_selected_shots_and_colours(self):
         # get the ticked shots
@@ -926,27 +948,20 @@ class RunViewer(object):
         for i in range(self.channel_model.rowCount()):
             check_item = self.channel_model.item(i, CHANNEL_MODEL__CHECKBOX_INDEX)
             channel = str(check_item.text())
+            if channel in self.plot_widgets:
+                # Remove the plot items and shutter markers of unticked shots
+                for shot in list(self.plot_items[channel]):
+                    if shot not in ticked_shots:
+                        self.plot_widgets[channel].removeItem(self.plot_items[channel].pop(shot))
+                        if shot in self.shutter_lines[channel]:
+                            close_lines, open_lines = self.shutter_lines[channel].pop(shot)
+                            for line in close_lines + open_lines:
+                                self.plot_widgets[channel].removeItem(line)
             if check_item.checkState() == QtCore.Qt.Checked and check_item.isEnabled():
                 # we want to show this plot
                 # does a plot already exist? If yes, show it
                 if channel in self.plot_widgets:
                     self.plot_widgets[channel].show()
-                    # update the plot
-                    # are there are plot items for this channel which are shown that should not be?
-                    to_delete = []
-                    for shot in self.plot_items[channel]:
-                        if shot not in ticked_shots.keys():
-                            self.plot_widgets[channel].removeItem(self.plot_items[channel][shot])
-                            # Remove Shutter Markers of unticked Shots
-                            if shot in self.shutter_lines[channel]:
-                                for line in self.shutter_lines[channel][shot][0]:
-                                    self.plot_widgets[channel].removeItem(line)
-                                for line in self.shutter_lines[channel][shot][1]:
-                                    self.plot_widgets[channel].removeItem(line)
-                                self.shutter_lines[channel].pop(shot)
-                            to_delete.append(shot)
-                    for shot in to_delete:
-                        del self.plot_items[channel][shot]
 
                     # do we need to add any plot items for shots that were not previously selected?
                     for shot, (colour, shutters_checked) in ticked_shots.items():
@@ -958,14 +973,6 @@ class RunViewer(object):
 
                         # Add Shutter Markers of newly ticked Shots
                         self.add_shutter_markers(shot, channel, shutters_checked)
-
-                    for t, m in self.all_markers.items():
-                        color = m['color']
-                        color = QtGui.QColor(color[0], color[1], color[2])
-                        if self.scale_time and self.scalehandler is not None:
-                            t = self.scalehandler.get_scaled_time(t)
-                        line = self.plot_widgets[channel].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=QtCore.Qt.DashLine))
-                        self.all_marker_items[line] = self.plot_widgets[channel]
 
                 # If no, create one
                 else:
@@ -1013,6 +1020,8 @@ class RunViewer(object):
         else:
             self.plot_widgets[channel].setLabel('left', channel)
 
+        self._add_marker_lines(self.plot_widgets[channel])
+
     def add_shutter_markers(self, shot, channel, shutters_checked):
         if shot not in self.shutter_lines[channel] and channel in shot.shutter_times:
             self.shutter_lines[channel][shot] = [[], []]
@@ -1021,7 +1030,10 @@ class RunViewer(object):
             close_color = QtGui.QColor(255, 0, 0)
 
             for t, val in shot.shutter_times[channel].items():
-                scaled_t = t
+                if self.scale_time and self.scalehandler is not None:
+                    scaled_t = self.scalehandler.get_scaled_time(t)
+                else:
+                    scaled_t = t
                 if val:  # val != 0, shutter open
                     line = self.plot_widgets[channel].addLine(x=scaled_t, pen=pg.mkPen(color=open_color, width=4., style=QtCore.Qt.DotLine))
                     self.shutter_lines[channel][shot][1].append(line)
@@ -1251,19 +1263,17 @@ class RunViewer(object):
             while True:
                 if self._resample:
                     self._resample = False
-                    channel_data = self.__get_all_resample_params()
-
-                    results = []
-                    for args in channel_data:
-                        results.append(executer.submit(self.__pool_resample, *args))
-
-                    # wait for all inmain_later calls from threadpool to finish before we trigger a new resample
-                    for future in results:
-                        result = future.result()
-                        if isinstance(result, Queue):
-                            result.get()
-                            
+                    self._resample_all(executer)
                 time.sleep(0.1)
+
+    def _resample_all(self, executer):
+        channel_data = self.__get_all_resample_params()
+        results = [executer.submit(self.__pool_resample, *args) for args in channel_data]
+        # wait for all inmain_later calls from threadpool to finish before we trigger a new resample
+        for future in results:
+            result = future.result()
+            if isinstance(result, Queue):
+                result.get()
 
     @inmain_decorator(wait_for_return=True)
     def __get_all_resample_params(self):
@@ -1279,14 +1289,15 @@ class RunViewer(object):
             # doesn't immediately go off the edge of the data, and the
             # next resampling might have time to fill in more data before
             # the user sees any empty space.
-            if self.scale_time:
-                xnew, ynew = self.resample(shot.scaled_times(channel), shot.traces[channel][1], xmin, xmax, shot.stop_time, dx)
+            scalehandler = self.scalehandler
+            if self.scale_time and scalehandler is not None:
+                stop_time = scalehandler.get_scaled_time(shot.stop_time)
+                xnew, ynew = self.resample(shot.scaled_times(channel, scalehandler), shot.traces[channel][1], xmin, xmax, stop_time, dx)
             else:
                 xnew, ynew = self.resample(shot.traces[channel][0], shot.traces[channel][1], xmin, xmax, shot.stop_time, dx)
             return inmain_later(self.plot_items[channel][shot].setData, xnew, ynew, pen=pg.mkPen(QtGui.QColor(colour), width=2), stepMode='center')
         except Exception:
-            #self._resample = True
-            pass
+            logger.warning(f'Failed to resample channel {channel} of {shot.path}:', exc_info=True)
 
     @inmain_decorator(wait_for_return=True)
     def channel_checked_and_enabled(self, channel):
@@ -1459,6 +1470,7 @@ class Shot(object):
         self.cached_scaler = None
         self._scalehandler = None
         self._scaled_x = {}
+        self._scaled_x_lock = threading.Lock()
 
         # store list of shutter changes and callibrations
         self._shutter_times = None
@@ -1567,11 +1579,11 @@ class Shot(object):
         except Exception as e:
 
             if hasattr(device, 'name'):
-                logger.info(f'Failed to load device {device.name:s}, exception was:\n'+
-                            ''.join(traceback.format_exception(type(e), e, e.__traceback__)))
+                logger.error(f'Failed to load device {device.name:s}, exception was:\n'+
+                             ''.join(traceback.format_exception(type(e), e, e.__traceback__)))
             else:
-                logger.info('Failed to load device (unknown name, device object does not have attribute name), exception was:\n'+
-                            ''.join(traceback.format_exception(type(e), e, e.__traceback__)))
+                logger.error('Failed to load device (unknown name, device object does not have attribute name), exception was:\n'+
+                             ''.join(traceback.format_exception(type(e), e, e.__traceback__)))
 
         # backwards compat
         with h5py.File(self.path, 'r') as file:
@@ -1580,14 +1592,14 @@ class Shot(object):
                     for name, val in file["runviewer"]["shutter_times"].attrs.items():
                         self._shutter_times[name] = {float(key_value.split(":")[0]): int(key_value.split(":")[1]) for key_value in val.strip('{}}').split(",")}
 
-    def scaled_times(self, channel):
-        if self.cached_scaler != app.scalehandler:
-            self.cached_scaler = app.scalehandler
-            self._scaled_x = {}
-        if channel not in self._scaled_x:
-            self._scaled_x[channel] = self.cached_scaler.get_scaled_time(self._traces[channel][0])
-
-        return self._scaled_x[channel]
+    def scaled_times(self, channel, scalehandler):
+        with self._scaled_x_lock:
+            if self.cached_scaler is not scalehandler:
+                self.cached_scaler = scalehandler
+                self._scaled_x = {}
+            if channel not in self._scaled_x:
+                self._scaled_x[channel] = scalehandler.get_scaled_time(self._traces[channel][0])
+            return self._scaled_x[channel]
 
     @property
     def channels(self):
