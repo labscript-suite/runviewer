@@ -1294,8 +1294,7 @@ class RunViewer(object):
                 xnew, ynew = self.resample(shot.traces[channel][0], shot.traces[channel][1], xmin, xmax, shot.stop_time, dx)
             return inmain_later(self.plot_items[channel][shot].setData, xnew, ynew, pen=pg.mkPen(QtGui.QColor(colour), width=2), stepMode='center')
         except Exception:
-            #self._resample = True
-            pass
+            logger.warning(f'Failed to resample channel {channel} of {shot.path}:', exc_info=True)
 
     @inmain_decorator(wait_for_return=True)
     def channel_checked_and_enabled(self, channel):
@@ -1577,11 +1576,11 @@ class Shot(object):
         except Exception as e:
 
             if hasattr(device, 'name'):
-                logger.info(f'Failed to load device {device.name:s}, exception was:\n'+
-                            ''.join(traceback.format_exception(type(e), e, e.__traceback__)))
+                logger.error(f'Failed to load device {device.name:s}, exception was:\n'+
+                             ''.join(traceback.format_exception(type(e), e, e.__traceback__)))
             else:
-                logger.info('Failed to load device (unknown name, device object does not have attribute name), exception was:\n'+
-                            ''.join(traceback.format_exception(type(e), e, e.__traceback__)))
+                logger.error('Failed to load device (unknown name, device object does not have attribute name), exception was:\n'+
+                             ''.join(traceback.format_exception(type(e), e, e.__traceback__)))
 
         # backwards compat
         with h5py.File(self.path, 'r') as file:
