@@ -643,6 +643,7 @@ class RunViewer(object):
                     check_item.setCheckState(QtCore.Qt.Checked if checked else QtCore.Qt.Unchecked)
                     self.channel_model.takeRow(check_item.row())
                     self.channel_model.insertRow(row, check_item)
+            self.update_plot_positions()
 
     def on_save_channel_config(self):
         save_file = QtWidgets.QFileDialog.getSaveFileName(self.ui, 'Select  file to save current channel configuration', self.default_config_path, "config files (*.ini)")
