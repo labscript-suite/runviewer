@@ -1280,8 +1280,9 @@ class RunViewer(object):
             # doesn't immediately go off the edge of the data, and the
             # next resampling might have time to fill in more data before
             # the user sees any empty space.
-            if self.scale_time:
-                xnew, ynew = self.resample(shot.scaled_times(channel), shot.traces[channel][1], xmin, xmax, shot.stop_time, dx)
+            scalehandler = self.scalehandler
+            if self.scale_time and scalehandler is not None:
+                xnew, ynew = self.resample(shot.scaled_times(channel, scalehandler), shot.traces[channel][1], xmin, xmax, shot.stop_time, dx)
             else:
                 xnew, ynew = self.resample(shot.traces[channel][0], shot.traces[channel][1], xmin, xmax, shot.stop_time, dx)
             return inmain_later(self.plot_items[channel][shot].setData, xnew, ynew, pen=pg.mkPen(QtGui.QColor(colour), width=2), stepMode='center')
@@ -1460,6 +1461,7 @@ class Shot(object):
         self.cached_scaler = None
         self._scalehandler = None
         self._scaled_x = {}
+        self._scaled_x_lock = threading.Lock()
 
         # store list of shutter changes and callibrations
         self._shutter_times = None
@@ -1581,14 +1583,14 @@ class Shot(object):
                     for name, val in file["runviewer"]["shutter_times"].attrs.items():
                         self._shutter_times[name] = {float(key_value.split(":")[0]): int(key_value.split(":")[1]) for key_value in val.strip('{}}').split(",")}
 
-    def scaled_times(self, channel):
-        if self.cached_scaler != app.scalehandler:
-            self.cached_scaler = app.scalehandler
-            self._scaled_x = {}
-        if channel not in self._scaled_x:
-            self._scaled_x[channel] = self.cached_scaler.get_scaled_time(self._traces[channel][0])
-
-        return self._scaled_x[channel]
+    def scaled_times(self, channel, scalehandler):
+        with self._scaled_x_lock:
+            if self.cached_scaler is not scalehandler:
+                self.cached_scaler = scalehandler
+                self._scaled_x = {}
+            if channel not in self._scaled_x:
+                self._scaled_x[channel] = scalehandler.get_scaled_time(self._traces[channel][0])
+            return self._scaled_x[channel]
 
     @property
     def channels(self):
