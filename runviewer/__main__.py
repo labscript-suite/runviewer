@@ -393,11 +393,12 @@ class RunViewer(object):
         times = sorted(list(self.all_markers.keys()))
         last_time = 0
         for i, (t, m) in enumerate(sorted(self.all_markers.items())):
+            # The time axis line of each marker is labelled with the interval to the
+            # next marker; the last marker has no label
             if i < len(times)-1:
-                delta_t = times[i+1] - t
-            # Now always have a marker at stop time
-            # else:
-                # delta_t = shot.stop_time - t
+                delta_t_label = format_time(times[i+1] - t)
+            else:
+                delta_t_label = None
 
             unscaled_t = t
             if self.scale_time:
@@ -416,7 +417,7 @@ class RunViewer(object):
             self.movable_marker_items[line] = self._markers_plot[0]
             self.marker_times_unscaled[line] = unscaled_t
 
-            line = self._time_axis_plot[0].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=QtCore.Qt.DashLine), label=format_time(delta_t), labelOpts= {"color": color, "fill": QtGui.QColor(255, 255, 255, 255), "rotateAxis":(1, 0), "anchors": [(0.5, 0),(0.5, 0)]}, movable=False )
+            line = self._time_axis_plot[0].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=QtCore.Qt.DashLine), label=delta_t_label, labelOpts= {"color": color, "fill": QtGui.QColor(255, 255, 255, 255), "rotateAxis":(1, 0), "anchors": [(0.5, 0),(0.5, 0)]}, movable=False )
             self.all_marker_items[line] = self._time_axis_plot[0]
             last_time = t
         for plot_widget in self.plot_widgets.values():
@@ -486,6 +487,8 @@ class RunViewer(object):
         marker_index = self.ui.markers_comboBox.currentIndex()
         shot = self.ui.markers_comboBox.itemData(marker_index)
         markers_unscaled = sorted(list(self.all_markers.keys()))
+        if len(markers_unscaled) < 2:
+            return
         target_length = shot.stop_time / float(len(markers_unscaled) - 1)
         scaled_times = [target_length * i for i in range(len(markers_unscaled))]
         scalehandler = ScaleHandler(markers_unscaled, scaled_times, shot.stop_time)
