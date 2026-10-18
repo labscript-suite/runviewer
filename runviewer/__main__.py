@@ -403,12 +403,7 @@ class RunViewer(object):
             if self.scale_time:
                 t = self.scalehandler.get_scaled_time(t)
 
-            color = m['color']
-            r, g, b = color
-            if (r, g, b) == (-1, -1, -1):
-                # Default colour, black:
-                r, g, b = (0, 0, 0)
-            color = QtGui.QColor(r, g, b)
+            color = self._marker_colour(m)
             label = m['label'].decode() if isinstance( m['label'], bytes) else str(m['label'])
             if i == 0:
                 line = self._markers_plot[0].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=QtCore.Qt.DashLine), label=label, labelOpts= {"color": color, "fill": QtGui.QColor(255, 255, 255, 255), "rotateAxis":(1, 0), "anchors": [(0.5, 0),(0.5, 0)]}, movable=False )
@@ -424,7 +419,24 @@ class RunViewer(object):
             line = self._time_axis_plot[0].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=QtCore.Qt.DashLine), label=format_time(delta_t), labelOpts= {"color": color, "fill": QtGui.QColor(255, 255, 255, 255), "rotateAxis":(1, 0), "anchors": [(0.5, 0),(0.5, 0)]}, movable=False )
             self.all_marker_items[line] = self._time_axis_plot[0]
             last_time = t
+        for plot_widget in self.plot_widgets.values():
+            self._add_marker_lines(plot_widget)
         self.update_plots()
+
+    @staticmethod
+    def _marker_colour(marker):
+        r, g, b = marker['color']
+        if (r, g, b) == (-1, -1, -1):
+            # Default colour, black:
+            r, g, b = (0, 0, 0)
+        return QtGui.QColor(r, g, b)
+
+    def _add_marker_lines(self, plot_widget):
+        for t, m in self.all_markers.items():
+            if self.scale_time and self.scalehandler is not None:
+                t = self.scalehandler.get_scaled_time(t)
+            line = plot_widget.addLine(x=t, pen=pg.mkPen(color=self._marker_colour(m), width=1.5, style=QtCore.Qt.DashLine))
+            self.all_marker_items[line] = plot_widget
 
     def mouseMovedEvent(self, position, ui, name):
         if self.ui.toggle_tooltip.isChecked():
@@ -957,14 +969,6 @@ class RunViewer(object):
                         # Add Shutter Markers of newly ticked Shots
                         self.add_shutter_markers(shot, channel, shutters_checked)
 
-                    for t, m in self.all_markers.items():
-                        color = m['color']
-                        color = QtGui.QColor(color[0], color[1], color[2])
-                        if self.scale_time and self.scalehandler is not None:
-                            t = self.scalehandler.get_scaled_time(t)
-                        line = self.plot_widgets[channel].addLine(x=t, pen=pg.mkPen(color=color, width=1.5, style=QtCore.Qt.DashLine))
-                        self.all_marker_items[line] = self.plot_widgets[channel]
-
                 # If no, create one
                 else:
                     self.create_plot(channel, ticked_shots)
@@ -1010,6 +1014,8 @@ class RunViewer(object):
             self.plot_widgets[channel].setLabel('left', channel, units=units)
         else:
             self.plot_widgets[channel].setLabel('left', channel)
+
+        self._add_marker_lines(self.plot_widgets[channel])
 
     def add_shutter_markers(self, shot, channel, shutters_checked):
         if shot not in self.shutter_lines[channel] and channel in shot.shutter_times:
