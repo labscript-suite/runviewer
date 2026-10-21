@@ -704,7 +704,7 @@ class RunViewer(object):
             message.setIcon(QtWidgets.QMessageBox.Warning)
             message.setWindowTitle("Runviewer")
             message.setStandardButtons(QtWidgets.QMessageBox.Ok)
-            message.exec_()
+            message.exec()
 
     def on_remove_shots(self, confirm=True):
         # Get the selection model from the treeview
