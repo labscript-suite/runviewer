@@ -68,6 +68,7 @@ from labscript_utils import device_registry
 
 from labscript_utils.labconfig import LabConfig, save_appconfig, load_appconfig
 from labscript_utils.ls_zprocess import ZMQServer, ProcessTree
+from zprocess import port_in_use
 process_tree = ProcessTree.instance()
 process_tree.zlock_client.set_process_name('runviewer')
 
@@ -1691,6 +1692,16 @@ if __name__ == "__main__":
     exp_config = LabConfig(required_params = {"DEFAULT": ["apparatus_name"], "paths": ["shared_drive", "experiment_shot_storage"], 'ports': ['runviewer']})
 
     port = int(exp_config.get('ports', 'runviewer'))
+    if port_in_use(port):
+        message = (
+            f"runviewer cannot start because port {port}, which is the runviewer "
+            "port in the labconfig, is in use. Another copy of runviewer is probably "
+            "running."
+        )
+        logger.error(message)
+        splash.hide()
+        QtWidgets.QMessageBox.critical(None, 'runviewer', message)
+        sys.exit(1)
     # Start experiment server
     experiment_server = RunviewerServer(port)
 
