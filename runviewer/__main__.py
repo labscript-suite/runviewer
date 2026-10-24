@@ -800,7 +800,7 @@ class RunViewer(object):
             self.on_toggle_shutter(item.checkState() == QtCore.Qt.Checked, current_shot)
 
     def load_shot(self, filepath):
-        logger.info(f'loading run from {filepath:s}')
+        logger.info('loading run from %s', filepath)
         shot = Shot(filepath)
 
         # add shot to shot list
@@ -1308,7 +1308,7 @@ class RunViewer(object):
                 first_failure = key not in self._resample_failures
                 self._resample_failures.add(key)
             if first_failure:
-                logger.warning(f'Failed to resample channel {channel} of {shot.path}:', exc_info=True)
+                logger.warning('Failed to resample channel %s of %s:', channel, shot.path, exc_info=True)
             return None
         with self._resample_failures_lock:
             self._resample_failures.discard(key)
@@ -1579,7 +1579,7 @@ class Shot(object):
 
     def _load_device(self, device, clock=None):
         try:
-            logger.info('loading %s' % device.name)
+            logger.info('loading %s', device.name)
             module = device.device_class
             # Load the master pseudoclock class
             device_class = device_registry.get_runviewer_parser(module)
@@ -1594,10 +1594,10 @@ class Shot(object):
         except Exception as e:
 
             if hasattr(device, 'name'):
-                logger.error(f'Failed to load device {device.name:s}, exception was:\n'+
+                logger.error('Failed to load device %s, exception was:\n%s', device.name,
                              ''.join(traceback.format_exception(type(e), e, e.__traceback__)))
             else:
-                logger.error('Failed to load device (unknown name, device object does not have attribute name), exception was:\n'+
+                logger.error('Failed to load device (unknown name, device object does not have attribute name), exception was:\n%s',
                              ''.join(traceback.format_exception(type(e), e, e.__traceback__)))
 
         # backwards compat
@@ -1685,10 +1685,10 @@ class RunviewerServer(ZMQServer):
         if h5_filepath == 'hello':
             return 'hello'
 
-        self.logger.info('Received hdf5 file: %s' % h5_filepath)
+        self.logger.info('Received hdf5 file: %s', h5_filepath)
         # Convert path to local slashes and shared drive prefix:
         h5_filepath = labscript_utils.shared_drive.path_to_local(h5_filepath)
-        logger.info('local filepath: %s' % h5_filepath)
+        logger.info('local filepath: %s', h5_filepath)
         # we add the shot to a queue so that we don't have to wait for the app to come up before
         # responding to runmanager
         shots_to_process_queue.put(h5_filepath)
