@@ -67,7 +67,7 @@ from labscript_utils.connections import ConnectionTable
 from labscript_utils import device_registry
 
 from labscript_utils.labconfig import LabConfig, save_appconfig, load_appconfig
-from labscript_utils.ls_zprocess import ZMQServer, ProcessTree
+from labscript_utils.ls_zprocess import ZMQServer, ProcessTree, exit_if_port_in_use
 process_tree = ProcessTree.instance()
 process_tree.zlock_client.set_process_name('runviewer')
 
@@ -1691,6 +1691,7 @@ if __name__ == "__main__":
     exp_config = LabConfig(required_params = {"DEFAULT": ["apparatus_name"], "paths": ["shared_drive", "experiment_shot_storage"], 'ports': ['runviewer']})
 
     port = int(exp_config.get('ports', 'runviewer'))
+    exit_if_port_in_use('runviewer', port, splash)
     # Start experiment server
     experiment_server = RunviewerServer(port)
 
