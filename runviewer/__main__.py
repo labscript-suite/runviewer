@@ -1721,9 +1721,6 @@ if __name__ == "__main__":
     app = RunViewer(exp_config)
     splash.hide()
 
-    def execute_program():
-        qapplication.exec()
-
     # Let the interpreter run every 500ms so it sees Ctrl-C interrupts:
     timer = QtCore.QTimer()
     timer.start(500)
@@ -1731,4 +1728,18 @@ if __name__ == "__main__":
     # Upon seeing a ctrl-c interrupt, quit the event loop
     signal.signal(signal.SIGINT, lambda *args: qapplication.exit())
 
-    sys.exit(execute_program())
+    qapplication.exec()
+
+    # Delete the windows now, rather than in PyQt's QObject cleanup at exit, during which
+    # Python code that creates or destroys wrapped Qt objects can crash the interpreter
+    # (https://github.com/Python-SIP/sip/pull/121). This can be removed once PyQt5-sip
+    # and PyQt6-sip releases include that fix.
+    from qtutils.qt import PYQT_LIBS
+    if QT_ENV in PYQT_LIBS:
+        import importlib
+        sip = importlib.import_module(f'{QT_ENV}.sip')
+        for widget in qapplication.topLevelWidgets():
+            # Other top-level widgets are owned by C++ objects, which delete them
+            if sip.ispyowned(widget):
+                widget.deleteLater()
+        qapplication.sendPostedEvents(None, QtCore.QEvent.Type.DeferredDelete)
