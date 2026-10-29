@@ -22,6 +22,7 @@ desktop_app.set_process_appid('runviewer')
 # Splash screen
 from runviewer import runviewer_dir
 from labscript_utils.splash import Splash
+from labscript_utils.qtwidgets.application import setup_application
 splash = Splash(os.path.join(runviewer_dir, 'runviewer.svg'))
 splash.show()
 
@@ -1700,6 +1701,7 @@ if __name__ == "__main__":
     qapplication = QtWidgets.QApplication.instance()
     if qapplication is None:
         qapplication = QtWidgets.QApplication(sys.argv)
+    setup_application(qapplication)
 
     shots_to_process_queue = Queue()
 
