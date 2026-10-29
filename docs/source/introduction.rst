@@ -9,17 +9,20 @@ of what the hardware will actually do. In effect, runviewer provides a low level
 representation of the experiment, which complements the high level representation provided
 by the experiment logic written using the labscript API. As such, runviewer traces provide
 a way to view the quantisation of outputs, [2]_ which can be seen in the `central_Bq` and
-`central_bias_z_coil` channels in :numref:`fig-interface`. You can also view the pseudoclock outputs.
-The `pulseblaster_0_ni_clock` and `pulseblaster_0_novatech_clock` channels demonstrate
-the independent clocking of devices from a single PulseBlaster pseudoclock. Similarly,
-`pulseblaster_1_clock` shows an entirely independent secondary pseudoclock.
+`rb_central_MOT_trap_aom_amp` channels in :numref:`fig-interface`. You can also view the
+pseudoclock outputs. The `ni_clock` and `novatech_clock` channels show the independent
+clocking of devices from a single PulseBlaster pseudoclock: the NI cards are clocked at the
+sample rates of the two analog ramps, and the NovaTech DDS9m at the 1 kHz sample rate of a
+frequency ramp that starts at the 'PGC' marker.
 
 .. _fig-interface:
 
 .. figure:: img/runviewer_interface.png
-    :alt: Runviewer runviewer
+    :alt: The runviewer window with one shot and five channels, zoomed in on 30 ms of the shot
 
-    An example of the runviewer interface.
+    The runviewer interface, zoomed in on the compression of a MOT and the start of an
+    optical molasses (PGC) stage. The analog outputs `central_Bq` and
+    `rb_central_MOT_trap_aom_amp` are ramped in steps of 0.5 ms and 0.25 ms.
 
 .. rubric:: Footnotes
 
