@@ -34,7 +34,7 @@ classifiers = [
 requires-python = ">=3.11"
 dependencies = [
     "desktop-app>=0.1.2",
-    "labscript_utils>=3.1.0b1",
+    "labscript_utils>=3.5.0rc1",
     "labscript-c-extensions",
     "pyqtgraph>=0.11.1",
     "qtutils>=4.4.3",
